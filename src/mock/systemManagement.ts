@@ -1,0 +1,176 @@
+﻿import type { PermissionNode, RolePermissionItem, SystemConfigModel, SystemUserItem } from '../types/systemManagement'
+
+export const systemUserMockList: SystemUserItem[] = [
+  {
+    id: 'USR-9001',
+    username: 'admin.zhang',
+    realName: '张明远',
+    role: '平台管理员',
+    department: '平台运维中心',
+    status: '启用',
+    createdAt: '2026-01-12 09:20',
+    phone: '138****1208',
+    email: 'admin.zhang@example.com',
+  },
+  {
+    id: 'USR-9002',
+    username: 'analyst.li',
+    realName: '李思琪',
+    role: '分析师',
+    department: '综合研判组',
+    status: '启用',
+    createdAt: '2026-01-15 10:40',
+    phone: '139****7821',
+    email: 'analyst.li@example.com',
+  },
+  {
+    id: 'USR-9003',
+    username: 'audit.wang',
+    realName: '王志坤',
+    role: '审计员',
+    department: '合规审计组',
+    status: '停用',
+    createdAt: '2026-01-18 14:15',
+    phone: '137****2506',
+    email: 'audit.wang@example.com',
+  },
+  {
+    id: 'USR-9004',
+    username: 'ops.chen',
+    realName: '陈雪峰',
+    role: '运维工程师',
+    department: '平台运维中心',
+    status: '启用',
+    createdAt: '2026-01-20 16:08',
+    phone: '136****9231',
+    email: 'ops.chen@example.com',
+  },
+  {
+    id: 'USR-9005',
+    username: 'manager.sun',
+    realName: '孙雅婷',
+    role: '业务主管',
+    department: '数据治理中心',
+    status: '启用',
+    createdAt: '2026-01-23 11:32',
+    phone: '135****6610',
+    email: 'manager.sun@example.com',
+  },
+]
+
+export const permissionTreeMock: PermissionNode[] = [
+  {
+    id: 'perm-dashboard',
+    label: '综合态势',
+    children: [
+      { id: 'perm-dashboard-view', label: '看板查看' },
+      { id: 'perm-dashboard-export', label: '看板导出' },
+    ],
+  },
+  {
+    id: 'perm-data-access',
+    label: '数据接入',
+    children: [
+      { id: 'perm-source-manage', label: '数据源管理' },
+      { id: 'perm-task-manage', label: '采集任务管理' },
+    ],
+  },
+  {
+    id: 'perm-warning',
+    label: '分析预警',
+    children: [
+      { id: 'perm-warning-overview', label: '预警概览查看' },
+      { id: 'perm-warning-rule-edit', label: '预警规则编辑' },
+      { id: 'perm-warning-record-handle', label: '预警记录处置' },
+    ],
+  },
+  {
+    id: 'perm-report',
+    label: '报告中心',
+    children: [
+      { id: 'perm-report-view', label: '报告查看' },
+      { id: 'perm-report-create', label: '报告创建' },
+      { id: 'perm-report-export', label: '报告导出' },
+    ],
+  },
+  {
+    id: 'perm-system',
+    label: '系统管理',
+    children: [
+      { id: 'perm-user-manage', label: '用户管理' },
+      { id: 'perm-role-manage', label: '角色权限管理' },
+      { id: 'perm-config-manage', label: '系统配置管理' },
+    ],
+  },
+]
+
+export const rolePermissionMockList: RolePermissionItem[] = [
+  {
+    id: 'ROLE-1001',
+    roleName: '平台管理员',
+    roleCode: 'platform_admin',
+    description: '可访问并管理全模块，拥有系统配置与权限分配能力。',
+    userCount: 3,
+    updatedAt: '2026-03-15 16:20',
+    permissions: [
+      'perm-dashboard-view',
+      'perm-dashboard-export',
+      'perm-source-manage',
+      'perm-task-manage',
+      'perm-warning-overview',
+      'perm-warning-rule-edit',
+      'perm-warning-record-handle',
+      'perm-report-view',
+      'perm-report-create',
+      'perm-report-export',
+      'perm-user-manage',
+      'perm-role-manage',
+      'perm-config-manage',
+    ],
+  },
+  {
+    id: 'ROLE-1002',
+    roleName: '分析师',
+    roleCode: 'analyst',
+    description: '聚焦检索、问答、预警与报告分析能力。',
+    userCount: 12,
+    updatedAt: '2026-03-14 10:05',
+    permissions: [
+      'perm-dashboard-view',
+      'perm-warning-overview',
+      'perm-warning-record-handle',
+      'perm-report-view',
+      'perm-report-create',
+      'perm-report-export',
+    ],
+  },
+  {
+    id: 'ROLE-1003',
+    roleName: '审计员',
+    roleCode: 'auditor',
+    description: '侧重查看、审计与追溯，不可修改核心配置。',
+    userCount: 5,
+    updatedAt: '2026-03-12 09:48',
+    permissions: ['perm-dashboard-view', 'perm-warning-overview', 'perm-report-view'],
+  },
+  {
+    id: 'ROLE-1004',
+    roleName: '运维工程师',
+    roleCode: 'ops_engineer',
+    description: '负责数据接入、任务调度与平台运行保障。',
+    userCount: 4,
+    updatedAt: '2026-03-11 15:30',
+    permissions: ['perm-source-manage', 'perm-task-manage', 'perm-warning-overview'],
+  },
+]
+
+export const systemConfigMock: SystemConfigModel = {
+  platformName: '开源数据智能分析平台',
+  defaultTheme: '政务蓝',
+  dataRetentionDays: 365,
+  modelPlaceholder: 'Mock-LLM-Insight-v1（占位）',
+  retrievalPlaceholder: 'TopK=20, 语义阈值=0.72（占位）',
+  warningThreshold: 75,
+  logRetentionDays: 180,
+  notificationEmail: 'ops-alert@example.com',
+}
