@@ -5,7 +5,7 @@ export type DashboardCockpitRiskLevel = '高' | '中' | '低'
 export type DashboardCockpitPointKind = 'warning' | 'emergency' | 'hotspot' | 'watch'
 export type DashboardCockpitLinkKind = 'warning' | 'event' | 'report' | 'entity' | 'search'
 export type DashboardCockpitDisplayMode = '驾驶舱降噪' | '扩展标注'
-export type DashboardCockpitBasemap = 'OSM 标准' | '驾驶舱暗色'
+export type DashboardCockpitBasemap = '高德标准' | '高德深色' | 'OSM 标准' | '驾驶舱暗色'
 
 export interface DashboardCockpitHeadline {
   id: string
@@ -87,6 +87,7 @@ export interface DashboardCockpitOverview {
   district: string
   mapName: string
   baseMapLabel: string
+  defaultBasemap: DashboardCockpitBasemap
   baseMapOptions: DashboardCockpitBasemap[]
   mapCenter: [number, number]
   mapZoom: number

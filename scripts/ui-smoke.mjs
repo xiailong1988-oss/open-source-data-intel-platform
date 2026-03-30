@@ -102,24 +102,48 @@ async function run() {
 
       for (const route of routes) {
         console.log(`[ui-smoke] ${viewport.name} -> ${route.path}`)
-        await page.goto(`${baseURL}${route.path}`, { waitUntil: 'networkidle' })
+        await page.goto(`${baseURL}${route.path}`, { waitUntil: 'domcontentloaded' })
         await page.locator(route.selector).first().waitFor({ timeout: 15000 })
         await page.waitForTimeout(300)
 
         if (route.slug === 'dashboard') {
-          await page.locator('.haidian-cockpit__chrome-actions .el-button').first().click()
+          await page.locator('.situation-top-bar__actions .el-button').nth(1).click()
           await page.locator('.platform-layout__aside--hidden').waitFor({ timeout: 10000 })
-          await page.locator('.haidian-cockpit__chrome-actions .el-button').first().click()
+          await page.locator('.situation-top-bar__actions .el-button').nth(1).click()
           await page.locator('.platform-layout__aside--hidden').waitFor({ state: 'detached', timeout: 10000 })
-          await page.locator('.haidian-cockpit__signal-chip').first().click()
-          await page.locator('.haidian-cockpit__toolbar-button').nth(2).click()
-          await page.locator('.haidian-cockpit__option-button').nth(1).click()
-          await page.locator('.intel-rail__stream-item').first().click()
-          await page.locator('.intel-rail__focus-card').first().waitFor({ timeout: 10000 })
-          await page.locator('.intel-rail__actions .el-button--primary').first().click()
-          await page.waitForURL(/\/knowledge-build\/event-management|\/analysis-warning\/records|\/smart-search|\/knowledge-build\/entity-management/)
-          await page.goBack({ waitUntil: 'networkidle' })
+          await page.locator('.situation-top-bar__actions .el-button').nth(0).click()
+          await page.locator('.map-overlay__summary-chip').first().click()
+          await page.locator('.map-overlay__layer-chip').nth(1).click()
+          const focusTitleBefore = (await page.locator('.situation-rail__focus-title').textContent())?.trim()
+          const activeTickerBefore = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
+          await page.waitForTimeout(4700)
+          const activeTickerAfter = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
+          const focusTitleAfter = (await page.locator('.situation-rail__focus-title').textContent())?.trim()
+          if (activeTickerBefore === activeTickerAfter) {
+            throw new Error('首页右侧情报流未按预期自动推进')
+          }
+          if (focusTitleBefore !== focusTitleAfter) {
+            throw new Error('首页右侧情报流自动推进时错误联动了地图焦点')
+          }
+          await page.locator('.situation-rail').hover()
+          const pausedTickerTitle = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
+          await page.waitForTimeout(4700)
+          const pausedTickerAfter = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
+          if (pausedTickerTitle !== pausedTickerAfter) {
+            throw new Error('首页右侧情报流在悬停状态下没有暂停')
+          }
+          await page.mouse.move(24, 24)
+          await page.waitForTimeout(4700)
+          const resumedTickerTitle = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
+          if (resumedTickerTitle === pausedTickerAfter) {
+            throw new Error('首页右侧情报流在移出悬停后没有恢复自动推进')
+          }
+          await page.locator('.situation-rail__controls .el-button').last().click()
+          await page.locator('.situation-stream__item.is-active').first().click({ force: true })
+          await page.waitForFunction(() => location.pathname !== '/dashboard')
+          await page.goBack({ waitUntil: 'domcontentloaded' })
           await page.locator('.cockpit-map').first().waitFor({ timeout: 10000 })
+          await page.locator('.situation-rail__focus-title').first().waitFor({ timeout: 10000 })
         }
 
         if (route.slug === 'smart-search') {
@@ -130,9 +154,15 @@ async function run() {
         }
 
         if (route.slug === 'topic-economy' || route.slug === 'topic-innovation') {
-          await page.locator('.spatial-card__headline-item').first().click()
-          await page.locator('.support-card__item').first().click()
-          await page.locator('.question-item').first().waitFor({ timeout: 10000 })
+          const loadingPanel = page.locator('.view-state-panel--loading')
+          if (await loadingPanel.count()) {
+            await loadingPanel.waitFor({ state: 'detached', timeout: 15000 }).catch(() => {})
+          }
+          await page.waitForTimeout(800)
+          await page.locator('.topic-list__item').first().click()
+          await page.waitForURL(/\/knowledge-build\/event-management/)
+          await page.goBack({ waitUntil: 'domcontentloaded' })
+          await page.locator('.topic-workbench').first().waitFor({ timeout: 10000 })
         }
 
         if (route.slug === 'smart-qa') {
@@ -174,16 +204,17 @@ async function run() {
       }
 
       console.log(`[ui-smoke] ${viewport.name} -> menu chain`)
-      await page.goto(`${baseURL}/dashboard`, { waitUntil: 'networkidle' })
-      await page.locator('.side-menu .el-menu-item', { hasText: '智能检索' }).click()
+      await page.goto(`${baseURL}/dashboard`, { waitUntil: 'domcontentloaded' })
+      const menuItems = page.locator('.side-menu .el-menu-item')
+      await menuItems.nth(4).click()
       await page.waitForURL(/\/smart-search/)
-      await page.locator('.side-menu .el-menu-item', { hasText: '综合态势' }).click()
+      await menuItems.nth(0).click()
       await page.waitForURL(/\/dashboard/)
-      await page.locator('.side-menu .el-menu-item', { hasText: '数据接入' }).click()
+      await menuItems.nth(1).click()
       await page.waitForURL(/\/data-access\/source-management/)
-      await page.locator('.side-menu .el-menu-item', { hasText: '智能问答' }).click()
+      await menuItems.nth(5).click()
       await page.waitForURL(/\/smart-qa/)
-      await page.locator('.side-menu .el-menu-item', { hasText: '报告中心' }).click()
+      await menuItems.nth(7).click()
       await page.waitForURL(/\/report-center\/reports$/)
       await page.screenshot({ path: join(outputDir, `menu-chain-${viewport.name}.png`) })
 

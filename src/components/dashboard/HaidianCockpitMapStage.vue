@@ -1,7 +1,9 @@
 ﻿<script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import L, { type CircleMarker, type GeoJSON, type Map as LeafletMap, type Marker, type TileLayer } from 'leaflet'
+import type { Feature, FeatureCollection, MultiPolygon, Polygon, Position } from 'geojson'
 import 'leaflet/dist/leaflet.css'
+import { getCockpitBasemapProvider } from '../../lib/map/mapProviderFactory'
 import type {
   DashboardCockpitBasemap,
   DashboardCockpitLayer,
@@ -36,11 +38,14 @@ let boundaryLayer: GeoJSON | null = null
 let zoneLayerGroup: L.LayerGroup | null = null
 let pointLayerGroup: L.LayerGroup | null = null
 let resizeObserver: ResizeObserver | null = null
-let boundaryGeoJson: GeoJSON.GeoJsonObject | null = null
+let boundaryGeoJson: FeatureCollection<Polygon | MultiPolygon> | null = null
 let tileErrorReported = false
+let boundaryMaskLayer: L.Polygon | null = null
+let hasInitialFocusApplied = false
 
 const pointRegistry = new Map<string, Marker>()
 const zoneRegistry = new Map<string, CircleMarker>()
+const districtBounds = () => L.latLngBounds(props.mapBounds)
 
 const latLngOf = (coords: [number, number]) => L.latLng(coords[1], coords[0])
 
@@ -70,14 +75,15 @@ const ensureMap = () => {
     zoomControl: false,
     attributionControl: true,
     preferCanvas: true,
-    minZoom: 11,
-    maxZoom: 16,
+    minZoom: 9.75,
+    maxZoom: 18,
     zoomSnap: 0.25,
-    maxBounds: L.latLngBounds(props.mapBounds),
-    maxBoundsViscosity: 0.85,
+    zoomAnimation: false,
+    fadeAnimation: false,
+    markerZoomAnimation: false,
   })
+  map.setView(districtBounds().getCenter(), 11)
 
-  map.fitBounds(L.latLngBounds(props.mapBounds).pad(-0.08))
   L.control.zoom({ position: 'bottomleft' }).addTo(map)
   zoneLayerGroup = L.layerGroup().addTo(map)
   pointLayerGroup = L.layerGroup().addTo(map)
@@ -88,12 +94,36 @@ const ensureMap = () => {
   resizeObserver.observe(mapRoot.value)
 }
 
-const createTileLayer = () =>
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    subdomains: ['a', 'b', 'c'],
-    attribution: '&copy; OpenStreetMap contributors',
-    className: 'cockpit-map__tile-layer',
+const getBoundaryHoles = () => {
+  if (!boundaryGeoJson) {
+    return []
+  }
+
+  const positionToLatLng = ([lng, lat]: Position) => L.latLng(lat, lng)
+
+  return boundaryGeoJson.features.flatMap((feature: Feature<Polygon | MultiPolygon>) => {
+    if (feature.geometry.type === 'Polygon') {
+      return feature.geometry.coordinates.map((ring) => ring.map(positionToLatLng))
+    }
+
+    if (feature.geometry.type === 'MultiPolygon') {
+      return feature.geometry.coordinates.flatMap((polygon) => polygon.map((ring) => ring.map(positionToLatLng)))
+    }
+
+    return []
   })
+}
+
+const updateSurfaceTone = () => {
+  if (!mapRoot.value) {
+    return
+  }
+
+  const provider = getCockpitBasemapProvider(props.activeBasemap)
+  mapRoot.value.classList.toggle('cockpit-map--online-light', provider.tone === 'online-light')
+  mapRoot.value.classList.toggle('cockpit-map--online-dark', provider.tone === 'online-dark')
+  mapRoot.value.classList.toggle('cockpit-map--fallback-dark', provider.tone === 'fallback-dark')
+}
 
 /**
  * 在线底图如果加载失败，必须能优雅回退到本地驾驶舱暗色底图，
@@ -104,20 +134,32 @@ const applyBasemap = () => {
     return
   }
 
-  mapRoot.value.classList.toggle('cockpit-map--online', props.activeBasemap === 'OSM 标准')
-  mapRoot.value.classList.toggle('cockpit-map--dark', props.activeBasemap === '驾驶舱暗色')
+  updateSurfaceTone()
 
   if (baseTileLayer) {
     map.removeLayer(baseTileLayer)
     baseTileLayer = null
   }
 
-  if (props.activeBasemap !== 'OSM 标准') {
+  const provider = getCockpitBasemapProvider(props.activeBasemap)
+  if (!provider.createTileLayer) {
     return
   }
 
   tileErrorReported = false
-  baseTileLayer = createTileLayer()
+  baseTileLayer = provider.createTileLayer({
+    onTileError: () => {
+      if (!tileErrorReported) {
+        tileErrorReported = true
+        emit('basemap-error')
+      }
+    },
+  })
+
+  if (!baseTileLayer) {
+    return
+  }
+
   baseTileLayer.on('tileerror', () => {
     if (!tileErrorReported) {
       tileErrorReported = true
@@ -132,17 +174,40 @@ const renderBoundary = () => {
     return
   }
 
+  if (boundaryMaskLayer) {
+    map.removeLayer(boundaryMaskLayer)
+    boundaryMaskLayer = null
+  }
+
   if (boundaryLayer) {
     map.removeLayer(boundaryLayer)
     boundaryLayer = null
   }
 
+  boundaryMaskLayer = L.polygon(
+    [
+      [
+        L.latLng(39.74, 115.95),
+        L.latLng(39.74, 116.58),
+        L.latLng(40.24, 116.58),
+        L.latLng(40.24, 115.95),
+      ],
+      ...getBoundaryHoles(),
+    ],
+    {
+      stroke: false,
+      fillColor: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? '#081320' : '#09121d',
+      fillOpacity: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? 0.22 : 0.12,
+      interactive: false,
+    },
+  ).addTo(map)
+
   boundaryLayer = L.geoJSON(boundaryGeoJson, {
     style: () => ({
-      color: props.activeBasemap === 'OSM 标准' ? '#2c5f93' : '#7cb6ff',
-      weight: props.activeBasemap === 'OSM 标准' ? 2.2 : 2.6,
-      fillColor: props.activeBasemap === 'OSM 标准' ? '#3f7cb9' : '#173352',
-      fillOpacity: props.activeBasemap === 'OSM 标准' ? 0.09 : 0.18,
+      color: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? '#2c5f93' : '#7cb6ff',
+      weight: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? 2.2 : 2.6,
+      fillColor: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? '#3f7cb9' : '#173352',
+      fillOpacity: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? 0.1 : 0.18,
       opacity: 0.95,
     }),
   }).addTo(map)
@@ -262,6 +327,29 @@ const drawPoints = () => {
   })
 }
 
+const focusDistrict = (animate = true) => {
+  if (!map) {
+    return
+  }
+
+  const bounds = districtBounds()
+  if (animate) {
+    map.flyToBounds(bounds, {
+      paddingTopLeft: [56, 44],
+      paddingBottomRight: [56, 44],
+      maxZoom: 11.35,
+      duration: 0.46,
+    })
+    return
+  }
+
+  map.fitBounds(bounds, {
+    paddingTopLeft: [56, 44],
+    paddingBottomRight: [56, 44],
+    maxZoom: 11.35,
+  })
+}
+
 const syncFocus = async () => {
   if (!map) {
     return
@@ -291,9 +379,6 @@ const syncFocus = async () => {
       return
     }
   }
-
-  await nextTick()
-  map.fitBounds(L.latLngBounds(props.mapBounds).pad(-0.08))
 }
 
 const refreshMap = async () => {
@@ -306,6 +391,12 @@ const refreshMap = async () => {
   drawZones()
   drawPoints()
   await syncFocus()
+
+  if (!hasInitialFocusApplied) {
+    hasInitialFocusApplied = true
+    await nextTick()
+    focusDistrict(false)
+  }
 }
 
 const loadBoundary = async () => {
@@ -314,7 +405,7 @@ const loadBoundary = async () => {
     throw new Error(`海淀区边界加载失败：${response.status}`)
   }
 
-  boundaryGeoJson = await response.json()
+  boundaryGeoJson = (await response.json()) as FeatureCollection<Polygon | MultiPolygon>
 }
 
 onMounted(async () => {
@@ -326,6 +417,9 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
+  map?.stop()
+  map?.off()
+  baseTileLayer?.off()
   map?.remove()
   map = null
 })
@@ -337,10 +431,14 @@ watch(
   },
   { deep: true },
 )
+
+defineExpose({
+  focusDistrict: () => focusDistrict(true),
+})
 </script>
 
 <template>
-  <div ref="mapRoot" class="cockpit-map cockpit-map--dark" />
+  <div ref="mapRoot" class="cockpit-map cockpit-map--fallback-dark" />
 </template>
 
 <style scoped>
@@ -349,15 +447,28 @@ watch(
   height: 100%;
   min-height: 680px;
   overflow: hidden;
-  border-radius: 28px;
+  border: 1px solid rgba(118, 170, 242, 0.08);
+  border-radius: 20px;
   background:
     radial-gradient(circle at 18% 18%, rgba(75, 132, 214, 0.22), transparent 34%),
     radial-gradient(circle at 76% 22%, rgba(72, 189, 165, 0.12), transparent 30%),
     linear-gradient(180deg, rgba(7, 19, 32, 0.96) 0%, rgba(8, 14, 24, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(146, 184, 236, 0.04);
 }
 
-.cockpit-map--online {
+.cockpit-map--online-light {
   background: #d5dbe3;
+}
+
+.cockpit-map--online-dark {
+  background: #0f1726;
+}
+
+.cockpit-map--fallback-dark {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(75, 132, 214, 0.22), transparent 34%),
+    radial-gradient(circle at 76% 22%, rgba(72, 189, 165, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(7, 19, 32, 0.96) 0%, rgba(8, 14, 24, 0.98) 100%);
 }
 
 .cockpit-map:deep(.leaflet-container) {
@@ -369,7 +480,7 @@ watch(
 
 .cockpit-map:deep(.leaflet-control-zoom) {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 18px 36px rgba(4, 10, 18, 0.28);
+  box-shadow: 0 18px 36px rgba(4, 10, 18, 0.18);
 }
 
 .cockpit-map:deep(.leaflet-control-zoom a) {
