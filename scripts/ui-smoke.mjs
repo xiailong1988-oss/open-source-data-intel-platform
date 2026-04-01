@@ -25,6 +25,8 @@ const routes = [
 ]
 
 const viewports = [
+  { name: 'desktop-1366', width: 1366, height: 900 },
+  { name: 'desktop-1440', width: 1440, height: 960 },
   { name: 'desktop-1600', width: 1600, height: 1000 },
   { name: 'desktop-2880', width: 2880, height: 1620 },
 ]
@@ -107,6 +109,34 @@ async function run() {
         await page.waitForTimeout(300)
 
         if (route.slug === 'dashboard') {
+          const stageLayout = await page.evaluate(() => {
+            const mapRect = document.querySelector('.haidian-cockpit__map-column')?.getBoundingClientRect()
+            const railRect = document.querySelector('.situation-signal-rail')?.getBoundingClientRect()
+
+            return {
+              map: mapRect
+                ? { top: mapRect.top, right: mapRect.right, bottom: mapRect.bottom, left: mapRect.left, width: mapRect.width }
+                : null,
+              rail: railRect
+                ? { top: railRect.top, right: railRect.right, bottom: railRect.bottom, left: railRect.left, width: railRect.width }
+                : null,
+            }
+          })
+
+          if (!stageLayout.map || !stageLayout.rail) {
+            throw new Error('首页主舞台未找到地图列或右侧 signal rail')
+          }
+
+          if (viewport.width >= 1366) {
+            if (stageLayout.rail.top - stageLayout.map.top > 120) {
+              throw new Error(`首页在 ${viewport.width}px 桌面宽度下出现上下堆叠，signal rail 未保持在地图右侧`)
+            }
+
+            if (stageLayout.rail.left <= stageLayout.map.right - 80) {
+              throw new Error(`首页在 ${viewport.width}px 桌面宽度下地图与 signal rail 左右关系异常`)
+            }
+          }
+
           await page.locator('.situation-top-chrome__actions button').nth(1).click()
           await page.locator('.platform-layout__aside--hidden').waitFor({ timeout: 10000 })
           await page.locator('.situation-top-chrome__actions button').nth(1).click()

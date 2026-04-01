@@ -521,7 +521,13 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 1560px) {
+@media (max-width: 1440px) {
+  .haidian-cockpit__stage {
+    grid-template-columns: minmax(0, 1fr) clamp(330px, 28vw, 390px);
+  }
+}
+
+@media (max-width: 1180px) {
   .haidian-cockpit__stage {
     grid-template-columns: 1fr;
   }
@@ -531,7 +537,7 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 900px) {
   .haidian-cockpit__map-column {
     min-height: 620px;
   }
