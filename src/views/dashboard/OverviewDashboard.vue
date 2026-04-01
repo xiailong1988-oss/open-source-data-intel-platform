@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import HaidianCockpitPanel from '../../components/dashboard/HaidianCockpitPanel.vue'
@@ -18,8 +18,8 @@ const layerQueryMap: Record<string, DashboardCockpitLayer> = {
 }
 
 /**
- * 旧页面和专题工作台仍可能带 query 回流到首页，
- * 这里统一映射到当前海淀驾驶舱图层，避免重构后回到错误视角。
+ * 首页仍然兼容旧页面和其他工作台带回来的 query，
+ * 但视觉骨架已经改成替换式新首页，因此这里只负责把 query 落到新的首页图层视角。
  */
 const initialCockpitLayer = computed<DashboardCockpitLayer>(() => {
   const rawLayer = typeof route.query.layer === 'string' ? route.query.layer : ''
@@ -35,10 +35,11 @@ const initialCockpitLayer = computed<DashboardCockpitLayer>(() => {
 
 <style scoped>
 .dashboard {
+  display: block;
   min-width: 0;
 }
 
-.dashboard :deep(.haidian-cockpit__frame) {
-  min-height: calc(100vh - 124px);
+.dashboard :deep(.haidian-cockpit) {
+  min-height: calc(100vh - 118px);
 }
 </style>

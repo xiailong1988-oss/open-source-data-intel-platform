@@ -107,43 +107,43 @@ async function run() {
         await page.waitForTimeout(300)
 
         if (route.slug === 'dashboard') {
-          await page.locator('.situation-top-bar__actions .el-button').nth(1).click()
+          await page.locator('.situation-top-chrome__actions button').nth(1).click()
           await page.locator('.platform-layout__aside--hidden').waitFor({ timeout: 10000 })
-          await page.locator('.situation-top-bar__actions .el-button').nth(1).click()
+          await page.locator('.situation-top-chrome__actions button').nth(1).click()
           await page.locator('.platform-layout__aside--hidden').waitFor({ state: 'detached', timeout: 10000 })
-          await page.locator('.situation-top-bar__actions .el-button').nth(0).click()
-          await page.locator('.map-overlay__summary-chip').first().click()
-          await page.locator('.map-overlay__layer-chip').nth(1).click()
-          const focusTitleBefore = (await page.locator('.situation-rail__focus-title').textContent())?.trim()
-          const activeTickerBefore = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
-          await page.waitForTimeout(4700)
-          const activeTickerAfter = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
-          const focusTitleAfter = (await page.locator('.situation-rail__focus-title').textContent())?.trim()
+          await page.locator('.situation-top-chrome__actions button').nth(0).click()
+          await page.locator('.situation-map-strip__signal').first().click()
+          await page.locator('.situation-map-strip__layer').nth(1).click()
+          const focusTitleBefore = (await page.locator('.situation-signal-rail__focus-title').textContent())?.trim()
+          const activeTickerBefore = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
+          await page.waitForTimeout(4300)
+          const activeTickerAfter = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
+          const focusTitleAfter = (await page.locator('.situation-signal-rail__focus-title').textContent())?.trim()
           if (activeTickerBefore === activeTickerAfter) {
             throw new Error('首页右侧情报流未按预期自动推进')
           }
           if (focusTitleBefore !== focusTitleAfter) {
             throw new Error('首页右侧情报流自动推进时错误联动了地图焦点')
           }
-          await page.locator('.situation-rail').hover()
-          const pausedTickerTitle = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
-          await page.waitForTimeout(4700)
-          const pausedTickerAfter = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
+          await page.locator('.situation-signal-rail').hover()
+          const pausedTickerTitle = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
+          await page.waitForTimeout(4300)
+          const pausedTickerAfter = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
           if (pausedTickerTitle !== pausedTickerAfter) {
             throw new Error('首页右侧情报流在悬停状态下没有暂停')
           }
           await page.mouse.move(24, 24)
-          await page.waitForTimeout(4700)
-          const resumedTickerTitle = (await page.locator('.situation-stream__item.is-active strong').first().textContent())?.trim()
+          await page.waitForTimeout(4300)
+          const resumedTickerTitle = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
           if (resumedTickerTitle === pausedTickerAfter) {
             throw new Error('首页右侧情报流在移出悬停后没有恢复自动推进')
           }
-          await page.locator('.situation-rail__controls .el-button').last().click()
-          await page.locator('.situation-stream__item.is-active').first().click({ force: true })
+          await page.locator('.situation-signal-rail__controls button').last().click()
+          await page.locator('.situation-signal-rail__item.is-active').first().click({ force: true })
           await page.waitForFunction(() => location.pathname !== '/dashboard')
           await page.goBack({ waitUntil: 'domcontentloaded' })
           await page.locator('.cockpit-map').first().waitFor({ timeout: 10000 })
-          await page.locator('.situation-rail__focus-title').first().waitFor({ timeout: 10000 })
+          await page.locator('.situation-signal-rail__focus-title').first().waitFor({ timeout: 10000 })
         }
 
         if (route.slug === 'smart-search') {

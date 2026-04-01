@@ -447,13 +447,15 @@ defineExpose({
   height: 100%;
   min-height: 680px;
   overflow: hidden;
-  border: 1px solid rgba(118, 170, 242, 0.08);
-  border-radius: 20px;
+  border: 1px solid rgba(118, 170, 242, 0.05);
+  border-radius: 24px;
   background:
     radial-gradient(circle at 18% 18%, rgba(75, 132, 214, 0.22), transparent 34%),
     radial-gradient(circle at 76% 22%, rgba(72, 189, 165, 0.12), transparent 30%),
     linear-gradient(180deg, rgba(7, 19, 32, 0.96) 0%, rgba(8, 14, 24, 0.98) 100%);
-  box-shadow: inset 0 1px 0 rgba(146, 184, 236, 0.04);
+  box-shadow:
+    inset 0 1px 0 rgba(146, 184, 236, 0.03),
+    0 18px 44px rgba(2, 8, 15, 0.18);
 }
 
 .cockpit-map--online-light {
@@ -480,7 +482,7 @@ defineExpose({
 
 .cockpit-map:deep(.leaflet-control-zoom) {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 18px 36px rgba(4, 10, 18, 0.18);
+  box-shadow: 0 14px 28px rgba(4, 10, 18, 0.14);
 }
 
 .cockpit-map:deep(.leaflet-control-zoom a) {

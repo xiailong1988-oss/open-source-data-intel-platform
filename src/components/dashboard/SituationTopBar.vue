@@ -1,9 +1,7 @@
-<script setup lang="ts">
-import { Aim, Hide, RefreshRight, View } from '@element-plus/icons-vue'
-
+﻿<script setup lang="ts">
 /**
- * 顶部条只承担终端激活感和极轻状态感，
- * 不再用大标题、厚 pill 群和说明块去压缩地图主画布。
+ * 首页顶部只保留终端式轻 chrome。
+ * 它只承担“系统在线”和“当前态势”的薄层提示，不能再像后台 header 一样抢地图高度。
  */
 defineProps<{
   district: string
@@ -22,67 +20,69 @@ defineEmits<{
 </script>
 
 <template>
-  <header class="situation-top-bar">
-    <div class="situation-top-bar__brand-group">
-      <strong class="situation-top-bar__brand">HAIDIAN TERMINAL</strong>
-      <span class="situation-top-bar__active">ACTIVE</span>
+  <header class="situation-top-chrome">
+    <div class="situation-top-chrome__brand">
+      <strong>HAIDIAN TERMINAL</strong>
+      <span class="situation-top-chrome__state">ACTIVE</span>
     </div>
 
-    <div class="situation-top-bar__status">
-      <span class="situation-top-bar__token">{{ district }}</span>
-      <span class="situation-top-bar__token">{{ activeLayer }}</span>
-      <span class="situation-top-bar__token">{{ activeBasemap }}</span>
-      <span class="situation-top-bar__token">更新 {{ latestUpdate }}</span>
-      <span v-if="basemapNotice" class="situation-top-bar__token situation-top-bar__token--notice">{{ basemapNotice }}</span>
+    <div class="situation-top-chrome__status">
+      <span>{{ district }}</span>
+      <span>{{ activeLayer }}</span>
+      <span>{{ activeBasemap }}</span>
+      <span>UPDATE {{ latestUpdate }}</span>
+      <span v-if="basemapNotice" class="is-notice">{{ basemapNotice }}</span>
     </div>
 
-    <div class="situation-top-bar__actions">
-      <el-button text size="small" :icon="Aim" @click="$emit('focus-district')">聚焦海淀</el-button>
-      <el-button text size="small" :icon="isSidebarHidden ? View : Hide" @click="$emit('toggle-sidebar')">
+    <div class="situation-top-chrome__actions">
+      <button type="button" @click="$emit('focus-district')">聚焦海淀</button>
+      <button type="button" @click="$emit('toggle-sidebar')">
         {{ isSidebarHidden ? '展开侧栏' : '专注视图' }}
-      </el-button>
-      <el-button text size="small" :icon="RefreshRight" @click="$emit('reset-view')">重置</el-button>
+      </button>
+      <button type="button" @click="$emit('reset-view')">重置视图</button>
     </div>
   </header>
 </template>
 
 <style scoped>
-.situation-top-bar {
+.situation-top-chrome {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
   align-items: center;
-  border-bottom: 1px solid rgba(93, 139, 212, 0.1);
-  padding: 0 0 8px;
+  gap: 14px;
+  min-height: 46px;
+  padding: 2px 0 4px;
 }
 
-.situation-top-bar__brand-group {
+.situation-top-chrome__brand {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.situation-top-bar__brand {
-  color: #f1f7ff;
+.situation-top-chrome__brand strong {
+  color: #f4f8ff;
   font-size: 15px;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.situation-top-bar__active {
+.situation-top-chrome__state {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(255, 101, 101, 0.34);
-  border-radius: 4px;
-  padding: 3px 8px;
-  color: #ff9088;
+  min-height: 20px;
+  border: 1px solid rgba(255, 112, 101, 0.34);
+  padding: 0 7px;
+  color: #ff9c92;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.situation-top-bar__status {
+.situation-top-chrome__status {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -90,47 +90,60 @@ defineEmits<{
   min-width: 0;
 }
 
-.situation-top-bar__token {
+.situation-top-chrome__status span {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(105, 151, 221, 0.1);
-  border-radius: 4px;
-  padding: 4px 7px;
-  background: rgba(8, 17, 29, 0.22);
-  color: rgba(221, 234, 248, 0.72);
+  min-height: 22px;
+  border: 1px solid rgba(123, 165, 223, 0.1);
+  padding: 0 8px;
+  color: rgba(214, 227, 243, 0.72);
   font-size: 10px;
-  line-height: 1;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
+  background: rgba(6, 14, 23, 0.2);
 }
 
-.situation-top-bar__token--notice {
-  color: #f7d78f;
+.situation-top-chrome__status .is-notice {
+  color: #f7d494;
 }
 
-.situation-top-bar__actions {
+.situation-top-chrome__actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
 }
 
-.situation-top-bar__actions :deep(.el-button) {
-  color: #9fb8d6;
-  letter-spacing: 0.06em;
+.situation-top-chrome__actions button {
+  border: 1px solid rgba(113, 160, 226, 0.14);
+  padding: 0 10px;
+  min-height: 24px;
+  background: rgba(7, 16, 26, 0.2);
+  color: #a6c2e3;
+  font-size: 10px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
-.situation-top-bar__actions :deep(.el-button:hover) {
-  color: #f3f8ff;
+.situation-top-chrome__actions button:hover {
+  border-color: rgba(120, 175, 247, 0.32);
+  background: rgba(17, 32, 50, 0.64);
+  color: #f4f8ff;
 }
 
-@media (max-width: 1440px) {
-  .situation-top-bar {
+@media (max-width: 1600px) {
+  .situation-top-chrome {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
-  .situation-top-bar__status {
+  .situation-top-chrome__status {
     justify-content: flex-start;
+  }
+
+  .situation-top-chrome__actions {
+    justify-content: flex-end;
   }
 }
 </style>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { DashboardCockpitLayer } from '../../types/dashboardCockpit'
 
 interface SignalItem {
@@ -9,8 +9,8 @@ interface SignalItem {
 }
 
 /**
- * 地图顶部只保留一条窄横条，
- * 让摘要高亮与图层切换融成一层，不再拆出第二层工具带。
+ * 地图顶部 overlay strip 只允许保留一层。
+ * 它承担极轻的态势摘要与图层切换，不再展开成后台式工具带。
  */
 defineProps<{
   signalItems: SignalItem[]
@@ -25,13 +25,13 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="map-overlay">
-    <div class="map-overlay__summary">
+  <div class="situation-map-strip">
+    <div class="situation-map-strip__signals">
       <button
         v-for="item in signalItems"
         :key="item.id"
         type="button"
-        class="map-overlay__summary-chip"
+        class="situation-map-strip__signal"
         :title="item.hint"
         @click="$emit('signal-click', item.id)"
       >
@@ -40,12 +40,12 @@ defineEmits<{
       </button>
     </div>
 
-    <div class="map-overlay__layers">
+    <div class="situation-map-strip__layers">
       <button
         v-for="layer in layers"
         :key="layer"
         type="button"
-        class="map-overlay__layer-chip"
+        class="situation-map-strip__layer"
         :class="{ 'is-active': layer === activeLayer }"
         @click="$emit('layer-select', layer)"
       >
@@ -56,76 +56,89 @@ defineEmits<{
 </template>
 
 <style scoped>
-.map-overlay {
+.situation-map-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border: 1px solid rgba(122, 170, 236, 0.14);
+  padding: 6px 10px;
+  background: rgba(5, 11, 19, 0.46);
+  backdrop-filter: blur(14px);
+}
+
+.situation-map-strip__signals,
+.situation-map-strip__layers {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1px solid rgba(116, 170, 240, 0.12);
-  border-radius: 6px;
-  padding: 6px 8px;
-  background: rgba(5, 12, 22, 0.54);
-  backdrop-filter: blur(12px);
-}
-
-.map-overlay__summary,
-.map-overlay__layers {
-  display: flex;
-  flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
 }
 
-.map-overlay__summary-chip,
-.map-overlay__layer-chip {
-  border: 1px solid rgba(120, 170, 240, 0.14);
-  background: rgba(7, 16, 28, 0.52);
-  color: rgba(216, 230, 245, 0.76);
+.situation-map-strip__signals {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.situation-map-strip__signals::-webkit-scrollbar {
+  display: none;
+}
+
+.situation-map-strip__signal,
+.situation-map-strip__layer {
+  border: 1px solid rgba(122, 170, 236, 0.12);
+  background: rgba(7, 16, 27, 0.38);
+  color: rgba(216, 229, 244, 0.76);
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
-.map-overlay__summary-chip:hover,
-.map-overlay__layer-chip:hover,
-.map-overlay__layer-chip.is-active {
-  border-color: rgba(120, 170, 240, 0.36);
-  background: rgba(17, 35, 56, 0.84);
-  color: #f3f8ff;
-  transform: translateY(-1px);
+.situation-map-strip__signal:hover,
+.situation-map-strip__layer:hover,
+.situation-map-strip__layer.is-active {
+  border-color: rgba(122, 170, 236, 0.34);
+  background: rgba(16, 30, 48, 0.72);
+  color: #f4f8ff;
 }
 
-.map-overlay__summary-chip {
+.situation-map-strip__signal {
   display: inline-flex;
-  min-width: 78px;
   align-items: center;
   gap: 8px;
-  border-radius: 4px;
-  padding: 4px 8px;
+  padding: 5px 8px;
+  white-space: nowrap;
 }
 
-.map-overlay__summary-chip span {
-  color: rgba(196, 216, 238, 0.78);
+.situation-map-strip__signal span {
+  color: rgba(194, 215, 239, 0.78);
   font-size: 9px;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.map-overlay__summary-chip strong {
-  color: #eff6ff;
+.situation-map-strip__signal strong {
+  color: #f2f7ff;
   font-size: 12px;
 }
 
-.map-overlay__layer-chip {
-  border-radius: 4px;
-  padding: 4px 8px;
+.situation-map-strip__layer {
+  padding: 5px 9px;
   font-size: 10px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 @media (max-width: 1560px) {
-  .map-overlay {
-    align-items: flex-start;
-    flex-direction: column;
+  .situation-map-strip {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .situation-map-strip__layers {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }
 </style>

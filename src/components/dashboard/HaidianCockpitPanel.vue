@@ -1,11 +1,11 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import HaidianCockpitMapStage from './HaidianCockpitMapStage.vue'
 import SituationMapOverlayBar from './SituationMapOverlayBar.vue'
-import SituationRightFocusPanel from './SituationRightFocusPanel.vue'
+import SituationSignalRail from './SituationSignalRail.vue'
 import SituationTopBar from './SituationTopBar.vue'
 import { getCockpitMapProviderFactoryState } from '../../lib/map/mapProviderFactory'
 import { useAppStore } from '../../stores/app'
@@ -53,13 +53,6 @@ const filters = reactive({
   displayMode: '驾驶舱降噪' as DashboardCockpitDisplayMode,
 })
 
-const layerTagTypeMap: Record<DashboardCockpitLayer, 'danger' | 'warning' | 'success' | 'info'> = {
-  风险预警: 'danger',
-  突发事件: 'warning',
-  热点事件: 'success',
-  重点关注: 'info',
-}
-
 const summarySignalMap: Record<string, { layer: DashboardCockpitLayer; risk?: DashboardCockpitRiskLevel | '全部' }> = {
   'high-risk': { layer: '风险预警', risk: '高' },
   'sudden-events': { layer: '突发事件', risk: '全部' },
@@ -80,7 +73,6 @@ const latestUpdate = computed(() =>
 )
 
 const signalItems = computed<DashboardCockpitHeadline[]>(() => props.overview.headlines)
-
 const layerPoints = computed(() => props.overview.points.filter((point) => point.layer === activeLayer.value))
 const filteredPoints = computed(() =>
   layerPoints.value.filter((point) => {
@@ -103,8 +95,8 @@ const filteredZones = computed(() =>
 const priorityPoints = computed(() => [...filteredPoints.value].sort((left, right) => right.priority - left.priority))
 
 /**
- * 地图默认只展开少量高优先点位，
- * 让首页第一眼先看到重点，而不是被所有标签同时压满。
+ * 首页默认仍然启用降噪，只展开最高优先级的少量点位。
+ * 这次骨架替换不改变已有正确的地图降噪策略，只把视觉壳子彻底换掉。
  */
 const highlightedPointIds = computed(() => {
   const quota = filters.displayMode === '驾驶舱降噪' ? 3 : 6
@@ -112,13 +104,10 @@ const highlightedPointIds = computed(() => {
 })
 
 /**
- * 右侧 signal rail 本轮不再绑定当前图层，而是作为全局重要情报流持续运行。
- * 这样首页更接近参照站的“主体地图 + 侧边信号层”关系。
+ * 右侧 signal rail 继续作为全局重要情报流，
+ * 不再被当前图层或局部区域硬切碎，这样才能像参照站一样成为独立的信息解释层。
  */
-const currentTicker = computed<DashboardCockpitTickerItem[]>(() =>
-  props.overview.ticker.filter((item) => (filters.area === '全部' ? true : item.area === filters.area)),
-)
-
+const currentTicker = computed<DashboardCockpitTickerItem[]>(() => props.overview.ticker)
 const currentTopics = computed(() => props.overview.topics.filter((item) => item.layer === activeLayer.value).slice(0, 2))
 const currentProfile = computed(() => props.overview.layerProfiles[activeLayer.value])
 const selectedPoint = computed(() => filteredPoints.value.find((point) => point.id === selectedPointId.value) ?? null)
@@ -146,7 +135,6 @@ const focusMeta = computed(() => {
 })
 
 const focusSummary = computed(() => displayPoint.value?.description ?? displayZone.value?.description ?? currentProfile.value.summary)
-const focusTag = computed(() => (displayPoint.value ? layerTagTypeMap[displayPoint.value.layer] : layerTagTypeMap[activeLayer.value]))
 const focusLinks = computed(() => displayPoint.value?.relatedLinks ?? [])
 
 const focusPoint = (pointId: string) => {
@@ -171,10 +159,6 @@ const focusZone = (zoneId: string) => {
   filters.area = zone.name
 }
 
-/**
- * 图层切换后要立即给地图一个可追踪焦点，
- * 但这个焦点来源于当前图层的高优先点位，而不是右侧自动滚动项。
- */
 const focusTopPriorityPoint = async () => {
   await nextTick()
 
@@ -308,8 +292,8 @@ const clearTickerAutoplay = () => {
 }
 
 /**
- * 自动滚动只推动右侧情报流自身，
- * 不能再驱动地图焦点和点位弹层，否则会破坏首页主舞台的稳定性。
+ * 自动滚动只服务右侧 rail 自身。
+ * 这是当前首页已经做对的逻辑，本轮替换骨架时必须保留，不能让地图再次被自动播放带着跳。
  */
 const restartTickerAutoplay = () => {
   clearTickerAutoplay()
@@ -320,7 +304,7 @@ const restartTickerAutoplay = () => {
 
   tickerTimer = window.setInterval(() => {
     activeTickerIndex.value = (activeTickerIndex.value + 1) % currentTicker.value.length
-  }, 4200)
+  }, 3800)
 }
 
 const setTickerIndex = (index: number) => {
@@ -354,8 +338,8 @@ const handleTickerHoverEnd = () => {
 }
 
 /**
- * 手动点击情报项时，才切换图层、聚焦地图并打开详情。
- * 自动滚动与详情联动在这里被彻底拆开。
+ * 只有手动点击情报条目时，地图才联动并打开详情。
+ * 自动滚动、上一条、下一条都不能再触发这条链路。
  */
 const openTickerDetail = async (index: number) => {
   const target = currentTicker.value[index]
@@ -430,76 +414,72 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="haidian-cockpit">
-    <div class="haidian-cockpit__frame">
-      <SituationTopBar
-        :district="props.overview.district"
-        :active-layer="activeLayer"
-        :active-basemap="activeBasemap"
-        :latest-update="latestUpdate"
-        :basemap-notice="basemapNotice"
-        :is-sidebar-hidden="isSidebarHidden"
-        @focus-district="focusDistrictView"
-        @toggle-sidebar="toggleSidebarVisibility"
-        @reset-view="resetView"
-      />
+    <SituationTopBar
+      :district="props.overview.district"
+      :active-layer="activeLayer"
+      :active-basemap="activeBasemap"
+      :latest-update="latestUpdate"
+      :basemap-notice="basemapNotice"
+      :is-sidebar-hidden="isSidebarHidden"
+      @focus-district="focusDistrictView"
+      @toggle-sidebar="toggleSidebarVisibility"
+      @reset-view="resetView"
+    />
 
-      <div class="haidian-cockpit__workspace">
-        <div class="haidian-cockpit__map-stage">
-          <div class="haidian-cockpit__overlay-bar">
-            <SituationMapOverlayBar
-              :signal-items="signalItems"
-              :layers="props.overview.layers"
-              :active-layer="activeLayer"
-              @signal-click="handleSignalClick"
-              @layer-select="setLayer"
-            />
-          </div>
-
-          <HaidianCockpitMapStage
-            ref="mapStageRef"
-            :district="props.overview.district"
-            :map-bounds="props.overview.mapBounds"
-            :points="filteredPoints"
-            :zones="filteredZones"
-            :selected-point-id="selectedPointId"
-            :selected-zone-id="selectedZoneId"
-            :highlighted-point-ids="highlightedPointIds"
+    <div class="haidian-cockpit__stage">
+      <div class="haidian-cockpit__map-column">
+        <div class="haidian-cockpit__overlay">
+          <SituationMapOverlayBar
+            :signal-items="signalItems"
+            :layers="props.overview.layers"
             :active-layer="activeLayer"
-            :active-basemap="activeBasemap"
-            @select-point="focusPoint"
-            @select-zone="focusZone"
-            @basemap-error="handleBasemapError"
+            @signal-click="handleSignalClick"
+            @layer-select="setLayer"
           />
         </div>
 
-        <SituationRightFocusPanel
+        <HaidianCockpitMapStage
+          ref="mapStageRef"
+          :district="props.overview.district"
+          :map-bounds="props.overview.mapBounds"
+          :points="filteredPoints"
+          :zones="filteredZones"
+          :selected-point-id="selectedPointId"
+          :selected-zone-id="selectedZoneId"
+          :highlighted-point-ids="highlightedPointIds"
           :active-layer="activeLayer"
-          :display-point="displayPoint"
-          :display-zone="displayZone"
-          :focus-summary="focusSummary"
-          :focus-meta="focusMeta"
-          :focus-tag="focusTag"
-          :current-topics="currentTopics"
-          :guide-summary="currentProfile.summary"
-          :guide-instruction="currentProfile.instruction"
-          :focus-links="focusLinks"
-          :zone-points="selectedZonePoints"
-          :ticker-items="currentTicker"
-          :active-ticker-index="activeTickerIndex"
-          :is-playback-paused="isPlaybackPaused"
-          @open-detail="openSelectedDetail"
-          @open-search="() => openSearch(displayPoint?.title ?? displayZone?.keyword)"
-          @open-link="openRouteLink"
-          @topic-click="openSearch"
-          @focus-point="focusPoint"
-          @select-ticker="openTickerDetail"
-          @previous="playPreviousTicker"
-          @next="playNextTicker"
-          @toggle-playback="togglePlayback"
-          @stream-hover-start="handleTickerHoverStart"
-          @stream-hover-end="handleTickerHoverEnd"
+          :active-basemap="activeBasemap"
+          @select-point="focusPoint"
+          @select-zone="focusZone"
+          @basemap-error="handleBasemapError"
         />
       </div>
+
+      <SituationSignalRail
+        :active-layer="activeLayer"
+        :display-point="displayPoint"
+        :display-zone="displayZone"
+        :focus-summary="focusSummary"
+        :focus-meta="focusMeta"
+        :guide-instruction="currentProfile.instruction"
+        :focus-links="focusLinks"
+        :zone-points="selectedZonePoints"
+        :current-topics="currentTopics"
+        :ticker-items="currentTicker"
+        :active-ticker-index="activeTickerIndex"
+        :is-playback-paused="isPlaybackPaused"
+        @open-detail="openSelectedDetail"
+        @open-search="() => openSearch(displayPoint?.title ?? displayZone?.keyword)"
+        @open-link="openRouteLink"
+        @topic-click="openSearch"
+        @focus-point="focusPoint"
+        @select-ticker="openTickerDetail"
+        @previous="playPreviousTicker"
+        @next="playNextTicker"
+        @toggle-playback="togglePlayback"
+        @stream-hover-start="handleTickerHoverStart"
+        @stream-hover-end="handleTickerHoverEnd"
+      />
     </div>
   </section>
 </template>
@@ -508,72 +488,52 @@ onBeforeUnmount(() => {
 .haidian-cockpit {
   display: flex;
   min-width: 0;
-  flex-direction: column;
-}
-
-.haidian-cockpit__frame {
-  display: flex;
-  min-width: 0;
-  min-height: calc(100vh - 138px);
+  min-height: calc(100vh - 118px);
   flex-direction: column;
   gap: 10px;
-  border: 1px solid rgba(116, 146, 184, 0.1);
-  border-radius: 8px;
-  padding: 12px;
-  background:
-    linear-gradient(180deg, rgba(8, 16, 28, 0.98) 0%, rgba(6, 12, 20, 0.98) 100%),
-    linear-gradient(rgba(84, 122, 184, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(84, 122, 184, 0.04) 1px, transparent 1px);
-  background-size: auto, 28px 28px, 28px 28px;
-  box-shadow: inset 0 1px 0 rgba(128, 171, 235, 0.03);
 }
 
-.haidian-cockpit__workspace {
+.haidian-cockpit__stage {
   display: grid;
-  grid-template-columns: minmax(0, 3.05fr) minmax(430px, 1fr);
-  gap: 12px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) clamp(380px, 26vw, 450px);
+  gap: 18px;
   min-height: 0;
   flex: 1 1 auto;
 }
 
-.haidian-cockpit__map-stage {
+.haidian-cockpit__map-column {
   position: relative;
   min-width: 0;
-  min-height: calc(100vh - 208px);
-  height: calc(100vh - 208px);
+  min-height: calc(100vh - 184px);
 }
 
-.haidian-cockpit__overlay-bar {
+.haidian-cockpit__overlay {
   position: absolute;
   top: 12px;
   left: 12px;
   right: 12px;
   z-index: 430;
-  pointer-events: auto;
 }
 
 @media (max-width: 1880px) {
-  .haidian-cockpit__workspace {
-    grid-template-columns: minmax(0, 2.85fr) minmax(390px, 1fr);
+  .haidian-cockpit__stage {
+    grid-template-columns: minmax(0, 1fr) clamp(360px, 27vw, 420px);
   }
 }
 
 @media (max-width: 1560px) {
-  .haidian-cockpit__workspace {
+  .haidian-cockpit__stage {
     grid-template-columns: 1fr;
   }
 
-  .haidian-cockpit__map-stage {
+  .haidian-cockpit__map-column {
     min-height: 700px;
-    height: 700px;
   }
 }
 
 @media (max-width: 1200px) {
-  .haidian-cockpit__map-stage {
+  .haidian-cockpit__map-column {
     min-height: 620px;
-    height: 620px;
   }
 }
 </style>
