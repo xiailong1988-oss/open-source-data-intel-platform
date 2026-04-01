@@ -108,7 +108,8 @@
   5. 右侧已新增真正的 `SituationSignalRail.vue`，不再勉强沿用旧的右侧业务面板结构；
   6. 自动滚动仍然只推动 rail 本身，不联动地图；点击条目时，才切图层、联动地图并打开详情；
   7. 已补充 ticker mock 数据密度，并修复了一个 ticker 指向不存在点位的隐患；
-  8. 已同步更新 UI 冒烟脚本，保证回归验证针对的是新首页骨架，而不是旧 DOM。
+  8. 已同步更新 UI 冒烟脚本，保证回归验证针对的是新首页骨架，而不是旧 DOM；
+  9. 已删除旧的 `SituationRightFocusPanel.vue` 和 `SituationBottomTicker.vue`，避免旧过渡组件继续干扰后续开发判断。
 
 ## 涉及文件
 - `src/views/dashboard/OverviewDashboard.vue`
@@ -119,6 +120,8 @@
 - `src/components/dashboard/HaidianCockpitMapStage.vue`
 - `src/mock/dashboardCockpit.ts`
 - `scripts/ui-smoke.mjs`
+- `src/components/dashboard/SituationRightFocusPanel.vue`（已废弃删除）
+- `src/components/dashboard/SituationBottomTicker.vue`（已废弃删除）
 
 ## 验收结果
 - `npm run build`：通过
