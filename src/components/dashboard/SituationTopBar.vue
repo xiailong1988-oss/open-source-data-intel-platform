@@ -20,7 +20,12 @@ defineEmits<{
 </script>
 
 <template>
-  <header class="situation-top-chrome">
+  <header
+    class="situation-top-chrome"
+    v-motion
+    :initial="{ opacity: 0, y: -12 }"
+    :enter="{ opacity: 1, y: 0, transition: { duration: 520 } }"
+  >
     <div class="situation-top-chrome__brand">
       <strong>HAIDIAN TERMINAL</strong>
       <span class="situation-top-chrome__state">ACTIVE</span>
@@ -132,7 +137,7 @@ defineEmits<{
   color: #f4f8ff;
 }
 
-@media (max-width: 1600px) {
+@media (max-width: 1180px) {
   .situation-top-chrome {
     grid-template-columns: 1fr;
     gap: 8px;

@@ -6,6 +6,8 @@ export type DashboardCockpitPointKind = 'warning' | 'emergency' | 'hotspot' | 'w
 export type DashboardCockpitLinkKind = 'warning' | 'event' | 'report' | 'entity' | 'search'
 export type DashboardCockpitDisplayMode = '驾驶舱降噪' | '扩展标注'
 export type DashboardCockpitBasemap = '高德标准' | '高德深色' | 'OSM 标准' | '驾驶舱暗色'
+export type DashboardSystemModuleId = 'collection' | 'storage' | 'resource' | 'agents'
+export type DashboardBusinessBoardId = 'enterprise' | 'innovation' | 'financing' | 'capital-risk' | 'spatial' | 'hotspot'
 
 export interface DashboardCockpitHeadline {
   id: string
@@ -83,6 +85,65 @@ export interface DashboardCockpitLayerProfile {
   priorityLabel: string
 }
 
+export interface DashboardSystemMetricItem {
+  id: string
+  label: string
+  value: number
+  suffix?: string
+  status?: 'online' | 'warning' | 'offline' | 'neutral'
+  detail: string
+}
+
+export interface DashboardSystemModule {
+  id: DashboardSystemModuleId
+  title: string
+  eyebrow: string
+  accent: 'cyan' | 'blue' | 'amber' | 'green'
+  detailTarget: DashboardCockpitLink
+  metrics: DashboardSystemMetricItem[]
+}
+
+export interface DashboardBusinessBoardMetric {
+  id: DashboardBusinessBoardId
+  title: string
+  eyebrow: string
+  currentValue: number
+  unit?: string
+  increment: string
+  trend: 'up' | 'flat' | 'down'
+  riskLevel: DashboardCockpitRiskLevel
+  summary: string
+  detailTarget: DashboardCockpitLink
+  highlights: Array<{
+    label: string
+    value: string
+  }>
+}
+
+export interface DashboardMapHighlight {
+  id: string
+  pointId: string
+  title: string
+  time: string
+  area: string
+  level: DashboardCockpitRiskLevel
+  status: string
+  preferredAnchor: 'top' | 'bottom'
+  detailTarget: DashboardCockpitLink
+}
+
+export interface DashboardMapProjectedPoint {
+  pointId: string
+  x: number
+  y: number
+}
+
+export interface DashboardMapLayoutSnapshot {
+  width: number
+  height: number
+  points: DashboardMapProjectedPoint[]
+}
+
 export interface DashboardCockpitOverview {
   district: string
   mapName: string
@@ -102,4 +163,7 @@ export interface DashboardCockpitOverview {
   recentFocuses: DashboardRecentFocus[]
   layerProfiles: Record<DashboardCockpitLayer, DashboardCockpitLayerProfile>
   defaultTips: string[]
+  systemMetrics: DashboardSystemModule[]
+  businessBoardMetrics: DashboardBusinessBoardMetric[]
+  mapHighlights: DashboardMapHighlight[]
 }

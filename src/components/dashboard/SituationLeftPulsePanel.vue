@@ -1,0 +1,361 @@
+﻿<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import Sortable from 'sortablejs'
+import type { DashboardSystemModule } from '../../types/dashboardCockpit'
+
+const props = defineProps<{
+  modules: DashboardSystemModule[]
+}>()
+
+const emit = defineEmits<{
+  (event: 'open-module', module: DashboardSystemModule): void
+}>()
+
+const STORAGE_KEY = 'dashboard-left-system-layout'
+const moduleOrder = ref<string[]>([])
+const moduleRoot = ref<HTMLElement | null>(null)
+const animatedMetricValues = reactive<Record<string, number>>({})
+let sortable: Sortable | null = null
+let frameId = 0
+
+const accentClassMap: Record<DashboardSystemModule['accent'], string> = {
+  cyan: 'is-cyan',
+  blue: 'is-blue',
+  amber: 'is-amber',
+  green: 'is-green',
+}
+
+const orderedModules = computed(() => {
+  const order = moduleOrder.value.length ? moduleOrder.value : props.modules.map((item) => item.id)
+  return order
+    .map((id) => props.modules.find((item) => item.id === id))
+    .filter((item): item is DashboardSystemModule => Boolean(item))
+})
+
+const persistOrder = () => {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(moduleOrder.value))
+}
+
+const restoreDefault = async () => {
+  moduleOrder.value = props.modules.map((item) => item.id)
+  persistOrder()
+  await nextTick()
+  sortable?.sort(moduleOrder.value)
+}
+
+const animateMetrics = () => {
+  if (frameId) {
+    window.cancelAnimationFrame(frameId)
+  }
+
+  const allMetrics = orderedModules.value.flatMap((module) => module.metrics)
+  const startedAt = performance.now()
+  const fromEntries = Object.fromEntries(allMetrics.map((metric) => [metric.id, animatedMetricValues[metric.id] ?? 0]))
+  const duration = 900
+
+  const tick = (timestamp: number) => {
+    const progress = Math.min(1, (timestamp - startedAt) / duration)
+    const eased = 1 - Math.pow(1 - progress, 3)
+    allMetrics.forEach((metric) => {
+      animatedMetricValues[metric.id] = fromEntries[metric.id] + (metric.value - fromEntries[metric.id]) * eased
+    })
+
+    if (progress < 1) {
+      frameId = window.requestAnimationFrame(tick)
+    }
+  }
+
+  frameId = window.requestAnimationFrame(tick)
+}
+
+watch(
+  () => props.modules.map((module) => `${module.id}:${module.metrics.map((metric) => `${metric.id}:${metric.value}`).join(',')}`).join('|'),
+  () => {
+    animateMetrics()
+  },
+  { immediate: true },
+)
+
+onMounted(async () => {
+  const saved = window.localStorage.getItem(STORAGE_KEY)
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved) as string[]
+      if (Array.isArray(parsed) && parsed.length) {
+        moduleOrder.value = parsed
+      }
+    } catch {
+      moduleOrder.value = props.modules.map((item) => item.id)
+    }
+  } else {
+    moduleOrder.value = props.modules.map((item) => item.id)
+  }
+
+  await nextTick()
+
+  if (moduleRoot.value) {
+    sortable = new Sortable(moduleRoot.value, {
+      animation: 180,
+      handle: '.situation-left-pulse__module-handle',
+      ghostClass: 'is-ghost',
+      dragClass: 'is-dragging',
+      onEnd: () => {
+        if (!moduleRoot.value) return
+        moduleOrder.value = Array.from(moduleRoot.value.querySelectorAll<HTMLElement>('[data-module-id]')).map((item) => item.dataset.moduleId ?? '')
+        persistOrder()
+      },
+    })
+  }
+})
+
+onBeforeUnmount(() => {
+  sortable?.destroy()
+  sortable = null
+  if (frameId) {
+    window.cancelAnimationFrame(frameId)
+  }
+})
+</script>
+
+<template>
+  <aside class="situation-left-pulse" v-motion :initial="{ opacity: 0, x: -18 }" :enter="{ opacity: 1, x: 0, transition: { duration: 620 } }">
+    <header class="situation-left-pulse__shell-header">
+      <div>
+        <span class="situation-left-pulse__eyebrow">System Pulse</span>
+        <strong>系统脉冲区</strong>
+      </div>
+      <button type="button" class="situation-left-pulse__reset" @click="restoreDefault">恢复默认</button>
+    </header>
+
+    <div ref="moduleRoot" class="situation-left-pulse__modules">
+      <section
+        v-for="(module, index) in orderedModules"
+        :key="module.id"
+        :data-module-id="module.id"
+        class="situation-left-pulse__module"
+        :class="accentClassMap[module.accent]"
+        v-motion
+        :initial="{ opacity: 0, y: 18, scale: 0.97 }"
+        :enter="{ opacity: 1, y: 0, scale: 1, transition: { delay: 120 + index * 80, duration: 420 } }"
+      >
+        <header class="situation-left-pulse__module-head">
+          <div>
+            <span class="situation-left-pulse__eyebrow">{{ module.eyebrow }}</span>
+            <strong>{{ module.title }}</strong>
+          </div>
+          <button type="button" class="situation-left-pulse__module-handle" title="拖拽排序">⋮⋮</button>
+        </header>
+
+        <div class="situation-left-pulse__metric-list">
+          <button
+            v-for="metric in module.metrics"
+            :key="metric.id"
+            type="button"
+            class="situation-left-pulse__metric"
+            @click="emit('open-module', module)"
+          >
+            <div class="situation-left-pulse__metric-head">
+              <span>{{ metric.label }}</span>
+              <i :class="metric.status ?? 'neutral'" />
+            </div>
+            <strong>
+              {{ Math.round(animatedMetricValues[metric.id] ?? metric.value) }}
+              <small v-if="metric.suffix">{{ metric.suffix }}</small>
+            </strong>
+            <small>{{ metric.detail }}</small>
+          </button>
+        </div>
+      </section>
+    </div>
+  </aside>
+</template>
+
+<style scoped>
+.situation-left-pulse {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.situation-left-pulse__shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.situation-left-pulse__eyebrow {
+  color: #83c2ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.situation-left-pulse__shell-header strong,
+.situation-left-pulse__module strong,
+.situation-left-pulse__metric strong {
+  color: #eff6ff;
+}
+
+.situation-left-pulse__reset,
+.situation-left-pulse__module-handle {
+  border: 1px solid rgba(118, 168, 240, 0.12);
+  background: rgba(8, 16, 28, 0.42);
+  color: rgba(202, 220, 244, 0.74);
+  cursor: pointer;
+}
+
+.situation-left-pulse__reset {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.situation-left-pulse__modules {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.situation-left-pulse__module {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(116, 168, 240, 0.1);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(8, 16, 28, 0.88) 0%, rgba(9, 15, 25, 0.72) 100%);
+  padding: 14px;
+  backdrop-filter: blur(14px);
+}
+
+.situation-left-pulse__module::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.84;
+}
+
+.situation-left-pulse__module.is-cyan::before {
+  background: linear-gradient(180deg, rgba(69, 209, 196, 0.08) 0%, transparent 42%);
+}
+
+.situation-left-pulse__module.is-blue::before {
+  background: linear-gradient(180deg, rgba(98, 169, 255, 0.08) 0%, transparent 42%);
+}
+
+.situation-left-pulse__module.is-amber::before {
+  background: linear-gradient(180deg, rgba(255, 190, 109, 0.08) 0%, transparent 42%);
+}
+
+.situation-left-pulse__module.is-green::before {
+  background: linear-gradient(180deg, rgba(90, 201, 143, 0.08) 0%, transparent 42%);
+}
+
+.situation-left-pulse__module-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.situation-left-pulse__module-handle {
+  width: 30px;
+  min-height: 30px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.situation-left-pulse__metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.situation-left-pulse__metric {
+  border: 1px solid rgba(116, 168, 240, 0.08);
+  border-radius: 14px;
+  background: rgba(5, 12, 20, 0.5);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
+}
+
+.situation-left-pulse__metric:hover {
+  transform: translateY(-2px);
+  border-color: rgba(137, 190, 255, 0.22);
+  box-shadow: 0 14px 28px rgba(2, 8, 15, 0.22);
+}
+
+.situation-left-pulse__metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.situation-left-pulse__metric-head i {
+  display: inline-flex;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(120, 156, 191, 0.56);
+}
+
+.situation-left-pulse__metric-head i.online {
+  background: #57d389;
+}
+
+.situation-left-pulse__metric-head i.warning {
+  background: #ffb05e;
+}
+
+.situation-left-pulse__metric-head i.offline {
+  background: #ff6f7e;
+}
+
+.situation-left-pulse__metric-head span,
+.situation-left-pulse__metric small {
+  color: rgba(191, 210, 233, 0.68);
+  line-height: 1.5;
+}
+
+.situation-left-pulse__metric strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.situation-left-pulse__metric strong small {
+  font-size: 12px;
+}
+
+.is-ghost {
+  opacity: 0.38;
+}
+
+.is-dragging {
+  cursor: grabbing;
+}
+
+@media (max-width: 1180px) {
+  .situation-left-pulse__modules {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .situation-left-pulse__modules {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

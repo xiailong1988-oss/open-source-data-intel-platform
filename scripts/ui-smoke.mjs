@@ -31,6 +31,11 @@ const viewports = [
   { name: 'desktop-2880', width: 2880, height: 1620 },
 ]
 
+const requestedRouteSlugs = process.env.SMOKE_ROUTES?.split(',').map((item) => item.trim()).filter(Boolean) ?? []
+const requestedViewportNames = process.env.SMOKE_VIEWPORTS?.split(',').map((item) => item.trim()).filter(Boolean) ?? []
+const activeRoutes = requestedRouteSlugs.length ? routes.filter((route) => requestedRouteSlugs.includes(route.slug)) : routes
+const activeViewports = requestedViewportNames.length ? viewports.filter((viewport) => requestedViewportNames.includes(viewport.name)) : viewports
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function waitForServer(url, timeoutMs = 30000) {
@@ -88,7 +93,7 @@ async function run() {
     const browser = await chromium.launch({ headless: true })
     const diagnostics = []
 
-    for (const viewport of viewports) {
+    for (const viewport of activeViewports) {
       const context = await browser.newContext({ viewport })
       const page = await context.newPage()
 
@@ -102,13 +107,16 @@ async function run() {
         }
       })
 
-      for (const route of routes) {
+      for (const route of activeRoutes) {
         console.log(`[ui-smoke] ${viewport.name} -> ${route.path}`)
         await page.goto(`${baseURL}${route.path}`, { waitUntil: 'domcontentloaded' })
         await page.locator(route.selector).first().waitFor({ timeout: 15000 })
         await page.waitForTimeout(300)
 
         if (route.slug === 'dashboard') {
+          await page.locator('.situation-left-pulse').first().waitFor({ timeout: 10000 })
+          await page.locator('.situation-bottom-band').first().waitFor({ timeout: 10000 })
+
           const stageLayout = await page.evaluate(() => {
             const mapRect = document.querySelector('.haidian-cockpit__map-column')?.getBoundingClientRect()
             const railRect = document.querySelector('.situation-signal-rail')?.getBoundingClientRect()
@@ -142,6 +150,17 @@ async function run() {
           await page.locator('.situation-top-chrome__actions button').nth(1).click()
           await page.locator('.platform-layout__aside--hidden').waitFor({ state: 'detached', timeout: 10000 })
           await page.locator('.situation-top-chrome__actions button').nth(0).click()
+          await page.locator('.situation-map-strip__action').click()
+          await page.locator('.map-highlight-layer__card').first().waitFor({ timeout: 10000 })
+          await page.locator('.map-highlight-layer__card').first().hover()
+          await page.locator('.map-highlight-layer__card').first().click()
+          await page.waitForFunction(() => location.pathname !== '/dashboard')
+          await page.goBack({ waitUntil: 'domcontentloaded' })
+          await page.locator('.cockpit-map').first().waitFor({ timeout: 10000 })
+          await page.locator('.situation-left-pulse__metric').first().click()
+          await page.waitForFunction(() => location.pathname !== '/dashboard')
+          await page.goBack({ waitUntil: 'domcontentloaded' })
+          await page.locator('.situation-left-pulse').first().waitFor({ timeout: 10000 })
           await page.locator('.situation-map-strip__signal').first().click()
           await page.locator('.situation-map-strip__layer').nth(1).click()
           const focusTitleBefore = (await page.locator('.situation-signal-rail__focus-title').textContent())?.trim()
@@ -174,6 +193,10 @@ async function run() {
           await page.goBack({ waitUntil: 'domcontentloaded' })
           await page.locator('.cockpit-map').first().waitFor({ timeout: 10000 })
           await page.locator('.situation-signal-rail__focus-title').first().waitFor({ timeout: 10000 })
+          await page.locator('.situation-bottom-band__card-main').first().click()
+          await page.waitForFunction(() => location.pathname !== '/dashboard')
+          await page.goBack({ waitUntil: 'domcontentloaded' })
+          await page.locator('.situation-bottom-band').first().waitFor({ timeout: 10000 })
         }
 
         if (route.slug === 'smart-search') {

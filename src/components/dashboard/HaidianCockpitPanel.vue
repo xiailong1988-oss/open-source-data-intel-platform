@@ -4,6 +4,9 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import HaidianCockpitMapStage from './HaidianCockpitMapStage.vue'
+import SituationBottomInfoBand from './SituationBottomInfoBand.vue'
+import SituationLeftPulsePanel from './SituationLeftPulsePanel.vue'
+import SituationMapHighlightLayer from './SituationMapHighlightLayer.vue'
 import SituationMapOverlayBar from './SituationMapOverlayBar.vue'
 import SituationSignalRail from './SituationSignalRail.vue'
 import SituationTopBar from './SituationTopBar.vue'
@@ -18,6 +21,8 @@ import type {
   DashboardCockpitOverview,
   DashboardCockpitRiskLevel,
   DashboardCockpitTickerItem,
+  DashboardMapHighlight,
+  DashboardMapLayoutSnapshot,
 } from '../../types/dashboardCockpit'
 
 const props = withDefaults(
@@ -40,10 +45,14 @@ const providerFactoryState = getCockpitMapProviderFactoryState()
 const activeBasemap = ref<DashboardCockpitBasemap>(props.overview.defaultBasemap ?? providerFactoryState.defaultBasemap)
 const selectedPointId = ref('')
 const selectedZoneId = ref('')
+const hoveredPointId = ref('')
 const activeTickerIndex = ref(0)
 const basemapNotice = ref('')
 const isPlaybackPaused = ref(false)
 const isStreamHovered = ref(false)
+const showAllHighlights = ref(false)
+const mapLayout = ref<DashboardMapLayoutSnapshot | null>(null)
+const mapCursor = reactive({ visible: false, x: 0, y: 0 })
 let tickerTimer: number | null = null
 
 const filters = reactive({
@@ -67,6 +76,8 @@ const isInRange = (value: string) => {
   const day = 24 * 60 * 60 * 1000
   return filters.timeRange === '今日' ? diff <= day : diff <= day * 7
 }
+
+const pointIndex = computed(() => new Map(props.overview.points.map((point) => [point.id, point])))
 
 const latestUpdate = computed(() =>
   [...props.overview.points].sort((left, right) => (left.occurredAt > right.occurredAt ? -1 : 1))[0]?.occurredAt ?? '暂无更新',
@@ -93,25 +104,16 @@ const filteredZones = computed(() =>
 )
 
 const priorityPoints = computed(() => [...filteredPoints.value].sort((left, right) => right.priority - left.priority))
-
-/**
- * 首页默认仍然启用降噪，只展开最高优先级的少量点位。
- * 这次骨架替换不改变已有正确的地图降噪策略，只把视觉壳子彻底换掉。
- */
 const highlightedPointIds = computed(() => {
   const quota = filters.displayMode === '驾驶舱降噪' ? 3 : 6
   return priorityPoints.value.slice(0, quota).map((point) => point.id)
 })
 
-/**
- * 右侧 signal rail 继续作为全局重要情报流，
- * 不再被当前图层或局部区域硬切碎，这样才能像参照站一样成为独立的信息解释层。
- */
 const currentTicker = computed<DashboardCockpitTickerItem[]>(() => props.overview.ticker)
 const currentTopics = computed(() => props.overview.topics.filter((item) => item.layer === activeLayer.value).slice(0, 2))
 const currentProfile = computed(() => props.overview.layerProfiles[activeLayer.value])
-const selectedPoint = computed(() => filteredPoints.value.find((point) => point.id === selectedPointId.value) ?? null)
-const selectedZone = computed(() => filteredZones.value.find((zone) => zone.id === selectedZoneId.value) ?? null)
+const selectedPoint = computed(() => pointIndex.value.get(selectedPointId.value) ?? null)
+const selectedZone = computed(() => props.overview.zones.find((zone) => zone.id === selectedZoneId.value) ?? null)
 const defaultZone = computed(() => [...filteredZones.value].sort((left, right) => right.weight - left.weight)[0] ?? null)
 const defaultPoint = computed(() => priorityPoints.value[0] ?? null)
 const displayPoint = computed(() => selectedPoint.value ?? (!selectedZone.value ? defaultPoint.value : null))
@@ -136,41 +138,22 @@ const focusMeta = computed(() => {
 
 const focusSummary = computed(() => displayPoint.value?.description ?? displayZone.value?.description ?? currentProfile.value.summary)
 const focusLinks = computed(() => displayPoint.value?.relatedLinks ?? [])
+const visibleHighlights = computed(() =>
+  props.overview.mapHighlights
+    .filter((highlight) => {
+      const point = pointIndex.value.get(highlight.pointId)
+      if (!point) return false
+      if (point.layer !== activeLayer.value) return false
+      if (filters.area !== '全部' && point.area !== filters.area) return false
+      if (filters.riskLevel !== '全部' && point.riskLevel !== filters.riskLevel) return false
+      return isInRange(point.occurredAt)
+    })
+    .slice(0, 6),
+)
 
-const focusPoint = (pointId: string) => {
-  const target = filteredPoints.value.find((point) => point.id === pointId)
-  if (!target) return
-
-  selectedPointId.value = pointId
-  selectedZoneId.value = props.overview.zones.find((zone) => zone.featuredPointIds.includes(pointId))?.id ?? ''
-
-  const tickerIndex = currentTicker.value.findIndex((item) => item.relatedPointId === pointId)
-  if (tickerIndex >= 0) {
-    activeTickerIndex.value = tickerIndex
-  }
-}
-
-const focusZone = (zoneId: string) => {
-  const zone = filteredZones.value.find((item) => item.id === zoneId)
-  if (!zone) return
-
-  selectedZoneId.value = zoneId
-  selectedPointId.value = ''
-  filters.area = zone.name
-}
-
-const focusTopPriorityPoint = async () => {
-  await nextTick()
-
-  if (priorityPoints.value.length) {
-    focusPoint(priorityPoints.value[0].id)
-    return
-  }
-
-  if (defaultZone.value) {
-    focusZone(defaultZone.value.id)
-  }
-}
+const guideInstruction = computed(() =>
+  showAllHighlights.value ? '联线层已展开，可从地图顶端或底端直接进入重点信息详情。' : currentProfile.value.instruction,
+)
 
 const openRouteLink = (link: DashboardCockpitLink) => {
   if (link.path) {
@@ -194,6 +177,41 @@ const openRouteLink = (link: DashboardCockpitLink) => {
   }
 
   router.push({ path: '/smart-search', query: { keyword: link.title, region: '海淀区', mode: '语义检索' } })
+}
+
+const focusPoint = (pointId: string) => {
+  const target = pointIndex.value.get(pointId)
+  if (!target) return
+
+  selectedPointId.value = pointId
+  selectedZoneId.value = props.overview.zones.find((zone) => zone.featuredPointIds.includes(pointId))?.id ?? ''
+
+  const tickerIndex = currentTicker.value.findIndex((item) => item.relatedPointId === pointId)
+  if (tickerIndex >= 0) {
+    activeTickerIndex.value = tickerIndex
+  }
+}
+
+const focusZone = (zoneId: string) => {
+  const zone = props.overview.zones.find((item) => item.id === zoneId)
+  if (!zone) return
+
+  selectedZoneId.value = zoneId
+  selectedPointId.value = ''
+  filters.area = zone.name
+}
+
+const focusTopPriorityPoint = async () => {
+  await nextTick()
+
+  if (priorityPoints.value.length) {
+    focusPoint(priorityPoints.value[0].id)
+    return
+  }
+
+  if (defaultZone.value) {
+    focusZone(defaultZone.value.id)
+  }
 }
 
 const openSelectedDetail = () => {
@@ -225,11 +243,44 @@ const openSearch = (keyword?: string) => {
   })
 }
 
+const openModuleDetail = (module: DashboardCockpitOverview['systemMetrics'][number]) => {
+  openRouteLink(module.detailTarget)
+}
+
+const openBusinessBoard = (board: DashboardCockpitOverview['businessBoardMetrics'][number]) => {
+  openRouteLink(board.detailTarget)
+}
+
+const openHighlight = (highlight: DashboardMapHighlight) => {
+  hoveredPointId.value = ''
+  focusPoint(highlight.pointId)
+  openRouteLink(highlight.detailTarget)
+}
+
 const focusDistrictView = () => {
   selectedPointId.value = ''
   selectedZoneId.value = ''
   filters.area = '全部'
   mapStageRef.value?.focusDistrict()
+}
+
+const handleMapLayoutChange = (layout: DashboardMapLayoutSnapshot) => {
+  mapLayout.value = layout
+}
+
+const handleMapPointerMove = (event: MouseEvent) => {
+  const currentTarget = event.currentTarget as HTMLElement | null
+  if (!currentTarget) return
+
+  const rect = currentTarget.getBoundingClientRect()
+  mapCursor.visible = true
+  mapCursor.x = event.clientX - rect.left
+  mapCursor.y = event.clientY - rect.top
+}
+
+const handleMapPointerLeave = () => {
+  mapCursor.visible = false
+  hoveredPointId.value = ''
 }
 
 const resetView = async () => {
@@ -241,8 +292,10 @@ const resetView = async () => {
   filters.displayMode = '驾驶舱降噪'
   selectedPointId.value = ''
   selectedZoneId.value = ''
+  hoveredPointId.value = ''
   activeTickerIndex.value = 0
   basemapNotice.value = ''
+  showAllHighlights.value = false
   isPlaybackPaused.value = false
   await nextTick()
   await focusTopPriorityPoint()
@@ -262,6 +315,7 @@ const setLayer = async (layer: DashboardCockpitLayer) => {
   filters.riskLevel = '全部'
   selectedPointId.value = ''
   selectedZoneId.value = ''
+  hoveredPointId.value = ''
   await focusTopPriorityPoint()
 }
 
@@ -274,6 +328,7 @@ const handleSignalClick = async (signalId: string) => {
   filters.riskLevel = target.risk ?? '全部'
   selectedZoneId.value = ''
   selectedPointId.value = ''
+  hoveredPointId.value = ''
 
   await focusTopPriorityPoint()
 }
@@ -284,6 +339,10 @@ const handleBasemapError = () => {
   ElMessage.warning('在线底图加载失败，已自动回退')
 }
 
+const toggleHighlightPanel = () => {
+  showAllHighlights.value = !showAllHighlights.value
+}
+
 const clearTickerAutoplay = () => {
   if (tickerTimer !== null) {
     window.clearInterval(tickerTimer)
@@ -291,10 +350,6 @@ const clearTickerAutoplay = () => {
   }
 }
 
-/**
- * 自动滚动只服务右侧 rail 自身。
- * 这是当前首页已经做对的逻辑，本轮替换骨架时必须保留，不能让地图再次被自动播放带着跳。
- */
 const restartTickerAutoplay = () => {
   clearTickerAutoplay()
 
@@ -337,10 +392,6 @@ const handleTickerHoverEnd = () => {
   isStreamHovered.value = false
 }
 
-/**
- * 只有手动点击情报条目时，地图才联动并打开详情。
- * 自动滚动、上一条、下一条都不能再触发这条链路。
- */
 const openTickerDetail = async (index: number) => {
   const target = currentTicker.value[index]
   if (!target) return
@@ -353,12 +404,13 @@ const openTickerDetail = async (index: number) => {
     filters.riskLevel = '全部'
     selectedZoneId.value = ''
     selectedPointId.value = ''
+    hoveredPointId.value = ''
     await nextTick()
   }
 
   focusPoint(target.relatedPointId)
 
-  const point = props.overview.points.find((item) => item.id === target.relatedPointId)
+  const point = pointIndex.value.get(target.relatedPointId)
   if (point) {
     openRouteLink(point.detailTarget)
     return
@@ -427,14 +479,18 @@ onBeforeUnmount(() => {
     />
 
     <div class="haidian-cockpit__stage">
-      <div class="haidian-cockpit__map-column">
+      <SituationLeftPulsePanel :modules="props.overview.systemMetrics" @open-module="openModuleDetail" />
+
+      <div class="haidian-cockpit__map-column" @mousemove="handleMapPointerMove" @mouseleave="handleMapPointerLeave">
         <div class="haidian-cockpit__overlay">
           <SituationMapOverlayBar
             :signal-items="signalItems"
             :layers="props.overview.layers"
             :active-layer="activeLayer"
+            :is-highlight-expanded="showAllHighlights"
             @signal-click="handleSignalClick"
             @layer-select="setLayer"
+            @toggle-highlights="toggleHighlightPanel"
           />
         </div>
 
@@ -446,12 +502,31 @@ onBeforeUnmount(() => {
           :zones="filteredZones"
           :selected-point-id="selectedPointId"
           :selected-zone-id="selectedZoneId"
+          :hovered-point-id="hoveredPointId"
           :highlighted-point-ids="highlightedPointIds"
           :active-layer="activeLayer"
           :active-basemap="activeBasemap"
           @select-point="focusPoint"
           @select-zone="focusZone"
+          @layout-change="handleMapLayoutChange"
           @basemap-error="handleBasemapError"
+        />
+
+        <SituationMapHighlightLayer
+          :visible="showAllHighlights"
+          :layout="mapLayout"
+          :highlights="visibleHighlights"
+          :selected-point-id="selectedPointId"
+          :hovered-point-id="hoveredPointId"
+          @open-highlight="openHighlight"
+          @hover-highlight="(pointId) => (hoveredPointId = pointId)"
+          @leave-highlight="hoveredPointId = ''"
+        />
+
+        <div
+          v-if="mapCursor.visible"
+          class="haidian-cockpit__cursor-glow"
+          :style="{ left: `${mapCursor.x}px`, top: `${mapCursor.y}px` }"
         />
       </div>
 
@@ -461,7 +536,7 @@ onBeforeUnmount(() => {
         :display-zone="displayZone"
         :focus-summary="focusSummary"
         :focus-meta="focusMeta"
-        :guide-instruction="currentProfile.instruction"
+        :guide-instruction="guideInstruction"
         :focus-links="focusLinks"
         :zone-points="selectedZonePoints"
         :current-topics="currentTopics"
@@ -481,6 +556,8 @@ onBeforeUnmount(() => {
         @stream-hover-end="handleTickerHoverEnd"
       />
     </div>
+
+    <SituationBottomInfoBand :boards="props.overview.businessBoardMetrics" @open-board="openBusinessBoard" />
   </section>
 </template>
 
@@ -490,21 +567,47 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: calc(100vh - 118px);
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .haidian-cockpit__stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(380px, 26vw, 450px);
-  gap: 18px;
+  grid-template-columns: clamp(232px, 17vw, 292px) minmax(0, 1fr) clamp(360px, 21vw, 432px);
+  gap: 14px;
   min-height: 0;
-  flex: 1 1 auto;
+  align-items: stretch;
 }
 
 .haidian-cockpit__map-column {
   position: relative;
   min-width: 0;
-  min-height: calc(100vh - 184px);
+  min-height: clamp(500px, 54vh, 590px);
+}
+
+.haidian-cockpit__map-column::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  z-index: 410;
+  border: 1px solid rgba(101, 168, 246, 0.04);
+  border-radius: 28px;
+  background:
+    linear-gradient(rgba(84, 129, 191, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(84, 129, 191, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.haidian-cockpit__map-column::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 10% 16%, rgba(72, 158, 255, 0.12), transparent 30%),
+    radial-gradient(circle at 84% 18%, rgba(58, 210, 198, 0.08), transparent 26%);
+  pointer-events: none;
 }
 
 .haidian-cockpit__overlay {
@@ -515,15 +618,32 @@ onBeforeUnmount(() => {
   z-index: 430;
 }
 
+.haidian-cockpit__cursor-glow {
+  position: absolute;
+  z-index: 434;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  margin-top: -14px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(135, 198, 255, 0.78) 0%, rgba(80, 168, 255, 0.18) 42%, transparent 72%);
+  box-shadow: 0 0 28px rgba(96, 180, 255, 0.28);
+}
+
 @media (max-width: 1880px) {
   .haidian-cockpit__stage {
-    grid-template-columns: minmax(0, 1fr) clamp(360px, 27vw, 420px);
+    grid-template-columns: clamp(220px, 17vw, 278px) minmax(0, 1fr) clamp(348px, 23vw, 408px);
   }
 }
 
 @media (max-width: 1440px) {
   .haidian-cockpit__stage {
-    grid-template-columns: minmax(0, 1fr) clamp(330px, 28vw, 390px);
+    grid-template-columns: clamp(210px, 17vw, 246px) minmax(0, 1fr) clamp(328px, 24vw, 384px);
+  }
+
+  .haidian-cockpit__map-column {
+    min-height: clamp(460px, 50vh, 540px);
   }
 }
 
@@ -533,13 +653,13 @@ onBeforeUnmount(() => {
   }
 
   .haidian-cockpit__map-column {
-    min-height: 700px;
+    min-height: 640px;
   }
 }
 
 @media (max-width: 900px) {
   .haidian-cockpit__map-column {
-    min-height: 620px;
+    min-height: 560px;
   }
 }
 </style>

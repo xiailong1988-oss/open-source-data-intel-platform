@@ -7,6 +7,7 @@ import { getCockpitBasemapProvider } from '../../lib/map/mapProviderFactory'
 import type {
   DashboardCockpitBasemap,
   DashboardCockpitLayer,
+  DashboardMapLayoutSnapshot,
   DashboardCockpitPoint,
   DashboardCockpitRiskLevel,
   DashboardCockpitZone,
@@ -19,6 +20,7 @@ const props = defineProps<{
   zones: DashboardCockpitZone[]
   selectedPointId: string
   selectedZoneId: string
+  hoveredPointId?: string
   highlightedPointIds: string[]
   activeLayer: DashboardCockpitLayer
   activeBasemap: DashboardCockpitBasemap
@@ -28,6 +30,7 @@ const emit = defineEmits<{
   (event: 'select-point', pointId: string): void
   (event: 'select-zone', zoneId: string): void
   (event: 'basemap-error'): void
+  (event: 'layout-change', layout: DashboardMapLayoutSnapshot): void
 }>()
 
 const mapRoot = ref<HTMLDivElement | null>(null)
@@ -247,6 +250,27 @@ const popupHtml = (point: DashboardCockpitPoint) => `
   </div>
 `
 
+const emitPointLayout = () => {
+  if (!map || !mapRoot.value) {
+    return
+  }
+
+  const points = props.points.map((point) => {
+    const projected = map!.latLngToContainerPoint(latLngOf(point.coords))
+    return {
+      pointId: point.id,
+      x: projected.x,
+      y: projected.y,
+    }
+  })
+
+  emit('layout-change', {
+    width: mapRoot.value.clientWidth,
+    height: mapRoot.value.clientHeight,
+    points,
+  })
+}
+
 const drawZones = () => {
   if (!zoneLayerGroup) {
     return
@@ -294,7 +318,7 @@ const drawPoints = () => {
     const marker = L.marker(latLngOf(point.coords), {
       icon: L.divIcon({
         className: '',
-        html: createMarkerHtml(point, highlightedIds.has(point.id)),
+        html: createMarkerHtml(point, highlightedIds.has(point.id) || props.hoveredPointId === point.id),
         iconSize: [28, 28],
         iconAnchor: [14, 14],
       }),
@@ -391,6 +415,7 @@ const refreshMap = async () => {
   drawZones()
   drawPoints()
   await syncFocus()
+  emitPointLayout()
 
   if (!hasInitialFocusApplied) {
     hasInitialFocusApplied = true
@@ -410,6 +435,7 @@ const loadBoundary = async () => {
 
 onMounted(async () => {
   ensureMap()
+  map?.on('move zoom resize', emitPointLayout)
   await loadBoundary()
   await refreshMap()
 })
@@ -420,12 +446,13 @@ onBeforeUnmount(() => {
   map?.stop()
   map?.off()
   baseTileLayer?.off()
+  map?.off('move zoom resize', emitPointLayout)
   map?.remove()
   map = null
 })
 
 watch(
-  () => [props.activeBasemap, props.activeLayer, props.selectedPointId, props.selectedZoneId, props.points, props.zones, props.highlightedPointIds],
+  () => [props.activeBasemap, props.activeLayer, props.selectedPointId, props.selectedZoneId, props.hoveredPointId, props.points, props.zones, props.highlightedPointIds],
   async () => {
     await refreshMap()
   },
@@ -456,6 +483,30 @@ defineExpose({
   box-shadow:
     inset 0 1px 0 rgba(146, 184, 236, 0.03),
     0 18px 44px rgba(2, 8, 15, 0.18);
+}
+
+.cockpit-map::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 399;
+  background:
+    linear-gradient(rgba(120, 162, 214, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 162, 214, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.cockpit-map::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 400;
+  background: linear-gradient(180deg, transparent 0%, rgba(85, 158, 255, 0.06) 48%, transparent 100%);
+  transform: translateY(-100%);
+  animation: cockpit-map-scan 12s linear infinite;
+  pointer-events: none;
 }
 
 .cockpit-map--online-light {
@@ -587,6 +638,7 @@ defineExpose({
   width: 28px;
   align-items: center;
   justify-content: center;
+  transition: transform 0.22s ease;
 }
 
 .cockpit-map:deep(.cockpit-map-marker__pulse) {
@@ -615,6 +667,10 @@ defineExpose({
   box-shadow: 0 0 0 3px rgba(8, 16, 28, 0.4), 0 14px 24px rgba(5, 12, 20, 0.35);
 }
 
+.cockpit-map:deep(.cockpit-map-marker:hover) {
+  transform: scale(1.08);
+}
+
 .cockpit-map:deep(.cockpit-map-marker.is-selected .cockpit-map-marker__dot) {
   transform: scale(1.18);
 }
@@ -631,6 +687,26 @@ defineExpose({
   }
 
   100% {
+    opacity: 0;
+  }
+}
+
+@keyframes cockpit-map-scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  16% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 0.58;
+  }
+
+  100% {
+    transform: translateY(100%);
     opacity: 0;
   }
 }

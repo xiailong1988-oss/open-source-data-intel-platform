@@ -163,6 +163,9 @@ onBeforeUnmount(() => {
 <template>
   <aside
     class="situation-signal-rail"
+    v-motion
+    :initial="{ opacity: 0, x: 18 }"
+    :enter="{ opacity: 1, x: 0, transition: { delay: 160, duration: 620 } }"
     @mouseenter="emit('stream-hover-start')"
     @mouseleave="emit('stream-hover-end')"
   >
@@ -265,12 +268,13 @@ onBeforeUnmount(() => {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-height: 0;
   height: 100%;
-  padding: 8px 0 8px 18px;
-  border-left: 1px solid rgba(116, 170, 240, 0.12);
-  background: linear-gradient(180deg, rgba(6, 13, 22, 0.12) 0%, rgba(6, 13, 22, 0.42) 100%);
+  padding: 6px 0 8px 14px;
+  border-left: 1px solid rgba(116, 170, 240, 0.08);
+  background:
+    linear-gradient(180deg, rgba(7, 15, 24, 0.12) 0%, rgba(7, 15, 24, 0.38) 100%);
 }
 
 .situation-signal-rail__header {
@@ -284,7 +288,7 @@ onBeforeUnmount(() => {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .situation-signal-rail__eyebrow {
@@ -303,7 +307,7 @@ onBeforeUnmount(() => {
 }
 
 .situation-signal-rail__title-group strong {
-  font-size: 18px;
+  font-size: 16px;
   letter-spacing: 0.12em;
 }
 
@@ -375,13 +379,16 @@ onBeforeUnmount(() => {
 
 .situation-signal-rail__stream {
   min-height: 0;
+  flex: 1 1 auto;
 }
 
 .situation-signal-rail__viewport {
   overflow: hidden;
-  border-top: 1px solid rgba(118, 168, 238, 0.12);
-  border-bottom: 1px solid rgba(118, 168, 238, 0.12);
-  background: linear-gradient(180deg, rgba(7, 15, 25, 0.42) 0%, rgba(7, 15, 25, 0.12) 100%);
+  border: 1px solid rgba(118, 168, 238, 0.08);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(7, 15, 25, 0.52) 0%, rgba(7, 15, 25, 0.18) 100%);
+  box-shadow: inset 0 1px 0 rgba(157, 199, 255, 0.03);
 }
 
 .situation-signal-rail__track {
@@ -396,19 +403,25 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 5px;
   border: 0;
-  border-bottom: 1px solid rgba(118, 168, 238, 0.06);
-  padding: 10px 12px 10px 2px;
+  border-bottom: 1px solid rgba(118, 168, 238, 0.04);
+  padding: 10px 12px;
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease, padding-left 0.18s ease;
+  transition:
+    background 0.28s ease,
+    border-color 0.28s ease,
+    transform 0.28s ease,
+    box-shadow 0.28s ease;
 }
 
 .situation-signal-rail__item:hover,
 .situation-signal-rail__item.is-active {
-  background: rgba(20, 41, 66, 0.46);
+  background:
+    linear-gradient(90deg, rgba(56, 117, 189, 0.12), rgba(18, 36, 59, 0.36));
   border-color: rgba(118, 168, 238, 0.16);
-  padding-left: 8px;
+  transform: translateX(-2px);
+  box-shadow: inset 2px 0 0 rgba(123, 194, 255, 0.78);
 }
 
 .situation-signal-rail__item-meta {
@@ -429,8 +442,9 @@ onBeforeUnmount(() => {
 .situation-signal-rail__focus {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 6px;
+  gap: 8px;
+  border-top: 1px solid rgba(118, 168, 238, 0.08);
+  padding-top: 10px;
 }
 
 .situation-signal-rail__focus-head {
@@ -441,7 +455,7 @@ onBeforeUnmount(() => {
 }
 
 .situation-signal-rail__focus-title {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.45;
 }
 
@@ -465,8 +479,8 @@ onBeforeUnmount(() => {
 
 .situation-signal-rail__actions button,
 .situation-signal-rail__quick-item {
-  min-height: 30px;
-  padding: 0 10px;
+  min-height: 28px;
+  padding: 0 9px;
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -485,7 +499,7 @@ onBeforeUnmount(() => {
   .situation-signal-rail {
     border-left: 0;
     border-top: 1px solid rgba(116, 170, 240, 0.12);
-    padding: 16px 0 0;
+    padding: 12px 0 0;
   }
 }
 </style>
