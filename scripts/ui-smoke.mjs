@@ -120,6 +120,8 @@ async function run() {
           const stageLayout = await page.evaluate(() => {
             const mapRect = document.querySelector('.haidian-cockpit__map-column')?.getBoundingClientRect()
             const railRect = document.querySelector('.situation-signal-rail')?.getBoundingClientRect()
+            const bottomRect = document.querySelector('.situation-bottom-band')?.getBoundingClientRect()
+            const leftRect = document.querySelector('.situation-left-pulse')?.getBoundingClientRect()
 
             return {
               map: mapRect
@@ -128,11 +130,17 @@ async function run() {
               rail: railRect
                 ? { top: railRect.top, right: railRect.right, bottom: railRect.bottom, left: railRect.left, width: railRect.width }
                 : null,
+              bottom: bottomRect
+                ? { top: bottomRect.top, right: bottomRect.right, bottom: bottomRect.bottom, left: bottomRect.left, width: bottomRect.width }
+                : null,
+              left: leftRect
+                ? { top: leftRect.top, right: leftRect.right, bottom: leftRect.bottom, left: leftRect.left, width: leftRect.width }
+                : null,
             }
           })
 
-          if (!stageLayout.map || !stageLayout.rail) {
-            throw new Error('首页主舞台未找到地图列或右侧 signal rail')
+          if (!stageLayout.map || !stageLayout.rail || !stageLayout.bottom || !stageLayout.left) {
+            throw new Error('首页四区结构未完整渲染')
           }
 
           if (viewport.width >= 1366) {
@@ -143,6 +151,26 @@ async function run() {
             if (stageLayout.rail.left <= stageLayout.map.right - 80) {
               throw new Error(`首页在 ${viewport.width}px 桌面宽度下地图与 signal rail 左右关系异常`)
             }
+
+            if (stageLayout.bottom.bottom > viewport.height + 6) {
+              throw new Error(`首页在 ${viewport.width}px 桌面宽度下首屏未完整露出底部六大板块`)
+            }
+          }
+
+          const boardIds = await page.locator('.situation-bottom-band__item').evaluateAll((items) =>
+            items.map((item) => item.getAttribute('data-board-id')),
+          )
+          for (const expected of [
+            'industrial-development',
+            'tech-innovation',
+            'featured-economy',
+            'public-service',
+            'safety-governance',
+            'urban-rural-construction',
+          ]) {
+            if (!boardIds.includes(expected)) {
+              throw new Error(`首页底部六大板块缺少：${expected}`)
+            }
           }
 
           await page.locator('.situation-top-chrome__actions button').nth(1).click()
@@ -151,9 +179,9 @@ async function run() {
           await page.locator('.platform-layout__aside--hidden').waitFor({ state: 'detached', timeout: 10000 })
           await page.locator('.situation-top-chrome__actions button').nth(0).click()
           await page.locator('.situation-map-strip__action').click()
-          await page.locator('.map-highlight-layer__card').first().waitFor({ timeout: 10000 })
+          await page.waitForFunction(() => document.querySelectorAll('.map-highlight-layer__card').length > 0)
           await page.locator('.map-highlight-layer__card').first().hover()
-          await page.locator('.map-highlight-layer__card').first().click()
+          await page.locator('.map-highlight-layer__card').first().click({ force: true })
           await page.waitForFunction(() => location.pathname !== '/dashboard')
           await page.goBack({ waitUntil: 'domcontentloaded' })
           await page.locator('.cockpit-map').first().waitFor({ timeout: 10000 })

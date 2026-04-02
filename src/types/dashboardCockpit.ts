@@ -7,7 +7,13 @@ export type DashboardCockpitLinkKind = 'warning' | 'event' | 'report' | 'entity'
 export type DashboardCockpitDisplayMode = '驾驶舱降噪' | '扩展标注'
 export type DashboardCockpitBasemap = '高德标准' | '高德深色' | 'OSM 标准' | '驾驶舱暗色'
 export type DashboardSystemModuleId = 'collection' | 'storage' | 'resource' | 'agents'
-export type DashboardBusinessBoardId = 'enterprise' | 'innovation' | 'financing' | 'capital-risk' | 'spatial' | 'hotspot'
+export type DashboardBusinessBoardId =
+  | 'industrial-development'
+  | 'tech-innovation'
+  | 'featured-economy'
+  | 'public-service'
+  | 'safety-governance'
+  | 'urban-rural-construction'
 
 export interface DashboardCockpitHeadline {
   id: string
@@ -112,7 +118,7 @@ export interface DashboardBusinessBoardMetric {
   increment: string
   trend: 'up' | 'flat' | 'down'
   riskLevel: DashboardCockpitRiskLevel
-  summary: string
+  status: string
   detailTarget: DashboardCockpitLink
   highlights: Array<{
     label: string

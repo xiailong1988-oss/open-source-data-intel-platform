@@ -1,7 +1,19 @@
 ﻿<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import Sortable from 'sortablejs'
+import { GridStack, type GridStackWidget } from 'gridstack'
 import type { DashboardBusinessBoardMetric } from '../../types/dashboardCockpit'
+
+interface BoardLayout extends GridStackWidget {
+  id: DashboardBusinessBoardMetric['id']
+  x: number
+  y: number
+  w: number
+  h: number
+  minW: number
+  maxW: number
+  minH: number
+  maxH: number
+}
 
 const props = defineProps<{
   boards: DashboardBusinessBoardMetric[]
@@ -11,29 +23,126 @@ const emit = defineEmits<{
   (event: 'open-board', board: DashboardBusinessBoardMetric): void
 }>()
 
-const STORAGE_KEY = 'dashboard-business-board-layout'
-const boardOrder = ref<string[]>([])
-const boardRoot = ref<HTMLElement | null>(null)
+const STORAGE_KEY = 'dashboard-business-board-grid-v3'
+const gridRoot = ref<HTMLElement | null>(null)
+const boardLayouts = ref<BoardLayout[]>([])
 const animatedValues = reactive<Record<string, number>>({})
-let sortable: Sortable | null = null
+let grid: GridStack | null = null
 let frameId = 0
 
-const orderedBoards = computed(() => {
-  const order = boardOrder.value.length ? boardOrder.value : props.boards.map((item) => item.id)
-  return order
-    .map((id) => props.boards.find((item) => item.id === id))
-    .filter((item): item is DashboardBusinessBoardMetric => Boolean(item))
-})
+const defaultLayouts = (): BoardLayout[] =>
+  props.boards.map((board, index) => ({
+    id: board.id,
+    x: index,
+    y: 0,
+    w: 1,
+    h: 1,
+    minW: 1,
+    maxW: 3,
+    minH: 1,
+    maxH: 2,
+  }))
 
-const persistOrder = () => {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(boardOrder.value))
+const reconcileLayouts = (candidate: BoardLayout[]) => {
+  const next = candidate.length ? [...candidate] : defaultLayouts()
+  const existingIds = new Set(next.map((item) => item.id))
+
+  props.boards.forEach((board, index) => {
+    if (!existingIds.has(board.id)) {
+      next.push({ id: board.id, x: index, y: 0, w: 1, h: 1, minW: 1, maxW: 3, minH: 1, maxH: 2 })
+    }
+  })
+
+  return next
+    .filter((item) => props.boards.some((board) => board.id === item.id))
+    .map((item) => ({
+      id: item.id,
+      x: Math.max(0, item.x ?? 0),
+      y: Math.max(0, item.y ?? 0),
+      w: Math.min(3, Math.max(1, item.w ?? 1)),
+      h: Math.min(2, Math.max(1, item.h ?? 1)),
+      minW: 1,
+      maxW: 3,
+      minH: 1,
+      maxH: 2,
+    }))
+    .sort((left, right) => (left.y - right.y) || (left.x - right.x))
+}
+
+const boardMap = computed(() => new Map(props.boards.map((board) => [board.id, board])))
+const displayBoards = computed(() =>
+  boardLayouts.value
+    .map((layout) => {
+      const board = boardMap.value.get(layout.id)
+      return board ? { layout, board } : null
+    })
+    .filter((item): item is { layout: BoardLayout; board: DashboardBusinessBoardMetric } => Boolean(item)),
+)
+
+const persistLayouts = (layouts: BoardLayout[]) => {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts))
+}
+
+const captureLayoutsFromDom = () => {
+  if (!gridRoot.value) return []
+
+  return Array.from(gridRoot.value.querySelectorAll<HTMLElement>('.grid-stack-item[data-board-id]'))
+    .map((item) => ({
+      id: item.dataset.boardId as DashboardBusinessBoardMetric['id'],
+      x: Number(item.getAttribute('gs-x') ?? 0),
+      y: Number(item.getAttribute('gs-y') ?? 0),
+      w: Math.min(3, Math.max(1, Number(item.getAttribute('gs-w') ?? 1))),
+      h: Math.min(2, Math.max(1, Number(item.getAttribute('gs-h') ?? 1))),
+      minW: 1,
+      maxW: 3,
+      minH: 1,
+      maxH: 2,
+    }))
+    .sort((left, right) => (left.y - right.y) || (left.x - right.x))
+}
+
+const destroyGrid = () => {
+  if (!grid) return
+  grid.offAll()
+  grid.destroy(false)
+  grid = null
+}
+
+const initGrid = async () => {
+  if (!gridRoot.value) return
+
+  destroyGrid()
+  await nextTick()
+
+  grid = GridStack.init(
+    {
+      column: 6,
+      cellHeight: 138,
+      margin: 12,
+      float: false,
+      minRow: 1,
+      disableDrag: false,
+      disableResize: false,
+      animate: true,
+      alwaysShowResizeHandle: true,
+      handle: '.situation-bottom-band__drag',
+      resizable: { handles: 'e,se,s,sw,w' },
+    },
+    gridRoot.value,
+  )
+
+  grid.on('change', () => {
+    const nextLayouts = reconcileLayouts(captureLayoutsFromDom())
+    boardLayouts.value = nextLayouts
+    persistLayouts(nextLayouts)
+  })
 }
 
 const restoreDefault = async () => {
-  boardOrder.value = props.boards.map((item) => item.id)
-  persistOrder()
-  await nextTick()
-  sortable?.sort(boardOrder.value)
+  const nextLayouts = defaultLayouts()
+  boardLayouts.value = nextLayouts
+  persistLayouts(nextLayouts)
+  await initGrid()
 }
 
 const animateBoards = () => {
@@ -42,14 +151,14 @@ const animateBoards = () => {
   }
 
   const startedAt = performance.now()
-  const fromEntries = Object.fromEntries(orderedBoards.value.map((board) => [board.id, animatedValues[board.id] ?? 0]))
-  const duration = 880
+  const fromEntries = Object.fromEntries(props.boards.map((board) => [board.id, animatedValues[board.id] ?? 0]))
+  const duration = 780
 
   const tick = (timestamp: number) => {
     const progress = Math.min(1, (timestamp - startedAt) / duration)
     const eased = 1 - Math.pow(1 - progress, 3)
 
-    orderedBoards.value.forEach((board) => {
+    props.boards.forEach((board) => {
       animatedValues[board.id] = fromEntries[board.id] + (board.currentValue - fromEntries[board.id]) * eased
     })
 
@@ -62,9 +171,11 @@ const animateBoards = () => {
 }
 
 watch(
-  () => props.boards.map((board) => `${board.id}:${board.currentValue}`).join('|'),
+  () => props.boards.map((board) => `${board.id}:${board.currentValue}:${board.increment}:${board.status}`).join('|'),
   () => {
+    boardLayouts.value = reconcileLayouts(boardLayouts.value)
     animateBoards()
+    void initGrid()
   },
   { immediate: true },
 )
@@ -73,37 +184,20 @@ onMounted(async () => {
   const saved = window.localStorage.getItem(STORAGE_KEY)
   if (saved) {
     try {
-      const parsed = JSON.parse(saved) as string[]
-      if (Array.isArray(parsed) && parsed.length) {
-        boardOrder.value = parsed
-      }
+      boardLayouts.value = reconcileLayouts(JSON.parse(saved) as BoardLayout[])
     } catch {
-      boardOrder.value = props.boards.map((item) => item.id)
+      boardLayouts.value = defaultLayouts()
     }
   } else {
-    boardOrder.value = props.boards.map((item) => item.id)
+    boardLayouts.value = defaultLayouts()
   }
 
-  await nextTick()
-
-  if (boardRoot.value) {
-    sortable = new Sortable(boardRoot.value, {
-      animation: 180,
-      handle: '.situation-bottom-band__drag',
-      ghostClass: 'is-ghost',
-      dragClass: 'is-dragging',
-      onEnd: () => {
-        if (!boardRoot.value) return
-        boardOrder.value = Array.from(boardRoot.value.querySelectorAll<HTMLElement>('[data-board-id]')).map((item) => item.dataset.boardId ?? '')
-        persistOrder()
-      },
-    })
-  }
+  await initGrid()
+  animateBoards()
 })
 
 onBeforeUnmount(() => {
-  sortable?.destroy()
-  sortable = null
+  destroyGrid()
   if (frameId) {
     window.cancelAnimationFrame(frameId)
   }
@@ -119,47 +213,67 @@ onBeforeUnmount(() => {
   >
     <header class="situation-bottom-band__shell-header">
       <div>
-        <span class="situation-bottom-band__eyebrow">Business Matrix</span>
+        <span class="situation-bottom-band__eyebrow">Board Matrix</span>
         <strong>六大板块摘要矩阵</strong>
       </div>
       <button type="button" class="situation-bottom-band__reset" @click="restoreDefault">恢复默认布局</button>
     </header>
 
-    <div ref="boardRoot" class="situation-bottom-band__grid">
+    <div ref="gridRoot" class="situation-bottom-band__grid grid-stack">
       <article
-        v-for="(board, index) in orderedBoards"
-        :key="board.id"
-        :data-board-id="board.id"
-        class="situation-bottom-band__card"
-        :class="[`is-${board.riskLevel}`, `is-${board.trend}`]"
-        v-motion
-        :initial="{ opacity: 0, y: 22, scale: 0.98 }"
-        :enter="{ opacity: 1, y: 0, scale: 1, transition: { delay: 200 + index * 60, duration: 420 } }"
+        v-for="(item, index) in displayBoards"
+        :key="item.board.id"
+        class="grid-stack-item situation-bottom-band__item"
+        :data-board-id="item.board.id"
+        :gs-id="item.board.id"
+        :gs-x="item.layout.x"
+        :gs-y="item.layout.y"
+        :gs-w="item.layout.w"
+        :gs-h="item.layout.h"
+        :gs-min-w="item.layout.minW"
+        :gs-max-w="item.layout.maxW"
+        :gs-min-h="item.layout.minH"
+        :gs-max-h="item.layout.maxH"
       >
-        <header class="situation-bottom-band__card-head">
-          <div>
-            <span class="situation-bottom-band__eyebrow">{{ board.eyebrow }}</span>
-            <strong>{{ board.title }}</strong>
-          </div>
-          <button type="button" class="situation-bottom-band__drag" title="拖拽换位">⋮⋮</button>
-        </header>
+        <div class="grid-stack-item-content">
+          <section
+            class="situation-bottom-band__card"
+            :class="[`is-${item.board.riskLevel}`, `is-${item.board.trend}`]"
+            v-motion
+            :initial="{ opacity: 0, y: 18, scale: 0.98 }"
+            :enter="{ opacity: 1, y: 0, scale: 1, transition: { delay: 180 + index * 55, duration: 360 } }"
+          >
+            <header class="situation-bottom-band__card-head">
+              <div>
+                <span class="situation-bottom-band__eyebrow">{{ item.board.eyebrow }}</span>
+                <strong>{{ item.board.title }}</strong>
+              </div>
+              <button type="button" class="situation-bottom-band__drag" title="拖拽或缩放模块">⋮⋮</button>
+            </header>
 
-        <button type="button" class="situation-bottom-band__card-main" @click="emit('open-board', board)">
-          <div class="situation-bottom-band__value-line">
-            <strong>
-              {{ Math.round(animatedValues[board.id] ?? board.currentValue) }}
-              <small v-if="board.unit">{{ board.unit }}</small>
-            </strong>
-            <span>{{ board.increment }}</span>
-          </div>
-          <p>{{ board.summary }}</p>
-          <div class="situation-bottom-band__highlights">
-            <span v-for="item in board.highlights" :key="item.label">
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.label }}</small>
-            </span>
-          </div>
-        </button>
+            <button type="button" class="situation-bottom-band__card-main" @click="emit('open-board', item.board)">
+              <div class="situation-bottom-band__value-line">
+                <strong>
+                  {{ Math.round(animatedValues[item.board.id] ?? item.board.currentValue) }}
+                  <small v-if="item.board.unit">{{ item.board.unit }}</small>
+                </strong>
+                <span>{{ item.board.increment }}</span>
+              </div>
+
+              <div class="situation-bottom-band__status-line">
+                <em :class="`is-${item.board.riskLevel}`">{{ item.board.status }}</em>
+                <small>{{ item.board.trend === 'up' ? 'trend up' : item.board.trend === 'down' ? 'trend down' : 'trend flat' }}</small>
+              </div>
+
+              <div class="situation-bottom-band__highlights">
+                <span v-for="highlight in item.board.highlights" :key="highlight.label">
+                  <strong>{{ highlight.value }}</strong>
+                  <small>{{ highlight.label }}</small>
+                </span>
+              </div>
+            </button>
+          </section>
+        </div>
       </article>
     </div>
   </section>
@@ -169,7 +283,7 @@ onBeforeUnmount(() => {
 .situation-bottom-band {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -211,19 +325,24 @@ onBeforeUnmount(() => {
 }
 
 .situation-bottom-band__grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
+  min-height: 0;
+}
+
+.situation-bottom-band__item > .grid-stack-item-content {
+  overflow: hidden;
 }
 
 .situation-bottom-band__card {
   position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(118, 168, 240, 0.1);
-  border-radius: 20px;
+  border-radius: 18px;
   background: linear-gradient(180deg, rgba(8, 15, 25, 0.8) 0%, rgba(9, 16, 26, 0.68) 100%);
   padding: 12px;
-  min-width: 0;
 }
 
 .situation-bottom-band__card::before {
@@ -274,15 +393,16 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.situation-bottom-band__value-line {
+.situation-bottom-band__value-line,
+.situation-bottom-band__status-line {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
 .situation-bottom-band__value-line strong {
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1;
 }
 
@@ -291,15 +411,36 @@ onBeforeUnmount(() => {
 }
 
 .situation-bottom-band__value-line span,
-.situation-bottom-band__card p,
+.situation-bottom-band__status-line small,
 .situation-bottom-band__highlights small {
   color: rgba(192, 210, 233, 0.68);
 }
 
-.situation-bottom-band__card p {
-  min-height: 48px;
-  margin: 0;
-  line-height: 1.55;
+.situation-bottom-band__status-line em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.situation-bottom-band__status-line em.is-高 {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff9e9e;
+}
+
+.situation-bottom-band__status-line em.is-中 {
+  background: rgba(255, 178, 94, 0.12);
+  color: #ffd08e;
+}
+
+.situation-bottom-band__status-line em.is-低 {
+  background: rgba(95, 201, 143, 0.12);
+  color: #98e3b9;
 }
 
 .situation-bottom-band__highlights {
@@ -320,7 +461,7 @@ onBeforeUnmount(() => {
 }
 
 .situation-bottom-band__highlights strong {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .situation-bottom-band__card:hover {
@@ -328,29 +469,12 @@ onBeforeUnmount(() => {
   box-shadow: 0 14px 28px rgba(2, 8, 15, 0.2);
 }
 
-.is-ghost {
-  opacity: 0.38;
+.situation-bottom-band :deep(.grid-stack-item.ui-draggable-dragging .grid-stack-item-content),
+.situation-bottom-band :deep(.grid-stack-item.ui-resizable-resizing .grid-stack-item-content) {
+  box-shadow: 0 18px 34px rgba(2, 8, 15, 0.22);
 }
 
-.is-dragging {
-  cursor: grabbing;
-}
-
-@media (max-width: 1880px) {
-  .situation-bottom-band__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 1180px) {
-  .situation-bottom-band__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 760px) {
-  .situation-bottom-band__grid {
-    grid-template-columns: 1fr;
-  }
+.situation-bottom-band :deep(.ui-resizable-handle) {
+  filter: brightness(1.25);
 }
 </style>

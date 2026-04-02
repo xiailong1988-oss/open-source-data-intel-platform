@@ -472,7 +472,7 @@ defineExpose({
 .cockpit-map {
   position: relative;
   height: 100%;
-  min-height: 680px;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(118, 170, 242, 0.05);
   border-radius: 24px;

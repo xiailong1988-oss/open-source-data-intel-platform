@@ -496,6 +496,7 @@ onBeforeUnmount(() => {
 
         <HaidianCockpitMapStage
           ref="mapStageRef"
+          class="haidian-cockpit__map-stage"
           :district="props.overview.district"
           :map-bounds="props.overview.mapBounds"
           :points="filteredPoints"
@@ -567,21 +568,27 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: calc(100vh - 118px);
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .haidian-cockpit__stage {
+  --cockpit-stage-height: clamp(304px, 40vh, 430px);
   display: grid;
-  grid-template-columns: clamp(232px, 17vw, 292px) minmax(0, 1fr) clamp(360px, 21vw, 432px);
-  gap: 14px;
+  grid-template-columns: clamp(200px, 16vw, 248px) minmax(0, 1fr) clamp(318px, 21vw, 388px);
+  grid-template-rows: minmax(0, var(--cockpit-stage-height));
+  gap: 12px;
   min-height: 0;
+  height: var(--cockpit-stage-height);
   align-items: stretch;
 }
 
 .haidian-cockpit__map-column {
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  min-height: clamp(500px, 54vh, 590px);
+  min-height: 0;
+  height: 100%;
 }
 
 .haidian-cockpit__map-column::before {
@@ -612,10 +619,15 @@ onBeforeUnmount(() => {
 
 .haidian-cockpit__overlay {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  top: 10px;
+  left: 10px;
+  right: 10px;
   z-index: 430;
+}
+
+.haidian-cockpit__map-stage {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .haidian-cockpit__cursor-glow {
@@ -633,27 +645,26 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1880px) {
   .haidian-cockpit__stage {
-    grid-template-columns: clamp(220px, 17vw, 278px) minmax(0, 1fr) clamp(348px, 23vw, 408px);
+    grid-template-columns: clamp(192px, 16vw, 236px) minmax(0, 1fr) clamp(308px, 22vw, 374px);
   }
 }
 
 @media (max-width: 1440px) {
   .haidian-cockpit__stage {
-    grid-template-columns: clamp(210px, 17vw, 246px) minmax(0, 1fr) clamp(328px, 24vw, 384px);
-  }
-
-  .haidian-cockpit__map-column {
-    min-height: clamp(460px, 50vh, 540px);
+    grid-template-columns: clamp(184px, 16vw, 224px) minmax(0, 1fr) clamp(294px, 23vw, 350px);
+    --cockpit-stage-height: clamp(292px, 38vh, 388px);
   }
 }
 
 @media (max-width: 1180px) {
   .haidian-cockpit__stage {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    height: auto;
   }
 
   .haidian-cockpit__map-column {
-    min-height: 640px;
+    min-height: 460px;
   }
 }
 

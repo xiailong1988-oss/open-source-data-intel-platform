@@ -1,7 +1,17 @@
 ﻿<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import Sortable from 'sortablejs'
+import { GridStack, type GridStackWidget } from 'gridstack'
 import type { DashboardSystemModule } from '../../types/dashboardCockpit'
+
+interface SystemModuleLayout extends GridStackWidget {
+  id: DashboardSystemModule['id']
+  x: number
+  y: number
+  w: number
+  h: number
+  minH: number
+  maxH: number
+}
 
 const props = defineProps<{
   modules: DashboardSystemModule[]
@@ -11,11 +21,11 @@ const emit = defineEmits<{
   (event: 'open-module', module: DashboardSystemModule): void
 }>()
 
-const STORAGE_KEY = 'dashboard-left-system-layout'
-const moduleOrder = ref<string[]>([])
-const moduleRoot = ref<HTMLElement | null>(null)
+const STORAGE_KEY = 'dashboard-left-system-grid-v3'
+const gridRoot = ref<HTMLElement | null>(null)
+const widgetLayouts = ref<SystemModuleLayout[]>([])
 const animatedMetricValues = reactive<Record<string, number>>({})
-let sortable: Sortable | null = null
+let grid: GridStack | null = null
 let frameId = 0
 
 const accentClassMap: Record<DashboardSystemModule['accent'], string> = {
@@ -25,22 +35,113 @@ const accentClassMap: Record<DashboardSystemModule['accent'], string> = {
   green: 'is-green',
 }
 
-const orderedModules = computed(() => {
-  const order = moduleOrder.value.length ? moduleOrder.value : props.modules.map((item) => item.id)
-  return order
-    .map((id) => props.modules.find((item) => item.id === id))
-    .filter((item): item is DashboardSystemModule => Boolean(item))
-})
+const defaultLayouts = (): SystemModuleLayout[] =>
+  props.modules.map((module, index) => ({
+    id: module.id,
+    x: 0,
+    y: index,
+    w: 1,
+    h: 1,
+    minH: 1,
+    maxH: 2,
+  }))
 
-const persistOrder = () => {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(moduleOrder.value))
+const reconcileLayouts = (candidate: SystemModuleLayout[]) => {
+  const next = candidate.length ? [...candidate] : defaultLayouts()
+  const existingIds = new Set(next.map((item) => item.id))
+
+  props.modules.forEach((module, index) => {
+    if (!existingIds.has(module.id)) {
+      next.push({ id: module.id, x: 0, y: next.length || index, w: 1, h: 1, minH: 1, maxH: 2 })
+    }
+  })
+
+  return next
+    .filter((item) => props.modules.some((module) => module.id === item.id))
+    .sort((left, right) => left.y - right.y)
+    .map((item, index) => ({
+      id: item.id,
+      x: 0,
+      y: index,
+      w: 1,
+      h: Math.min(2, Math.max(1, item.h ?? 1)),
+      minH: 1,
+      maxH: 2,
+    }))
+}
+
+const moduleMap = computed(() => new Map(props.modules.map((module) => [module.id, module])))
+const displayWidgets = computed(() =>
+  widgetLayouts.value
+    .map((layout) => {
+      const module = moduleMap.value.get(layout.id)
+      return module ? { layout, module } : null
+    })
+    .filter((item): item is { layout: SystemModuleLayout; module: DashboardSystemModule } => Boolean(item)),
+)
+
+const persistLayouts = (layouts: SystemModuleLayout[]) => {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts))
+}
+
+const captureLayoutsFromDom = () => {
+  if (!gridRoot.value) return []
+
+  return Array.from(gridRoot.value.querySelectorAll<HTMLElement>('.grid-stack-item[data-widget-id]'))
+    .map((item) => ({
+      id: item.dataset.widgetId as DashboardSystemModule['id'],
+      x: 0,
+      y: Number(item.getAttribute('gs-y') ?? 0),
+      w: 1,
+      h: Math.min(2, Math.max(1, Number(item.getAttribute('gs-h') ?? 1))),
+      minH: 1,
+      maxH: 2,
+    }))
+    .sort((left, right) => left.y - right.y)
+}
+
+const destroyGrid = () => {
+  if (!grid) return
+  grid.offAll()
+  grid.destroy(false)
+  grid = null
+}
+
+const initGrid = async () => {
+  if (!gridRoot.value) return
+
+  destroyGrid()
+  await nextTick()
+
+  grid = GridStack.init(
+    {
+      column: 1,
+      cellHeight: 118,
+      margin: 10,
+      float: false,
+      minRow: 4,
+      disableDrag: false,
+      disableResize: false,
+      animate: true,
+      alwaysShowResizeHandle: true,
+      handle: '.situation-left-pulse__module-handle',
+      resizable: { handles: 's,se' },
+    },
+    gridRoot.value,
+  )
+
+  grid.on('change', () => {
+    const nextLayouts = reconcileLayouts(captureLayoutsFromDom())
+    widgetLayouts.value = nextLayouts
+    persistLayouts(nextLayouts)
+  })
 }
 
 const restoreDefault = async () => {
-  moduleOrder.value = props.modules.map((item) => item.id)
-  persistOrder()
-  await nextTick()
-  sortable?.sort(moduleOrder.value)
+  const nextLayouts = defaultLayouts()
+  widgetLayouts.value = nextLayouts
+  persistLayouts(nextLayouts)
+  await initGrid()
 }
 
 const animateMetrics = () => {
@@ -48,15 +149,16 @@ const animateMetrics = () => {
     window.cancelAnimationFrame(frameId)
   }
 
-  const allMetrics = orderedModules.value.flatMap((module) => module.metrics)
+  const metrics = props.modules.flatMap((module) => module.metrics)
+  const fromEntries = Object.fromEntries(metrics.map((metric) => [metric.id, animatedMetricValues[metric.id] ?? 0]))
   const startedAt = performance.now()
-  const fromEntries = Object.fromEntries(allMetrics.map((metric) => [metric.id, animatedMetricValues[metric.id] ?? 0]))
-  const duration = 900
+  const duration = 760
 
   const tick = (timestamp: number) => {
     const progress = Math.min(1, (timestamp - startedAt) / duration)
     const eased = 1 - Math.pow(1 - progress, 3)
-    allMetrics.forEach((metric) => {
+
+    metrics.forEach((metric) => {
       animatedMetricValues[metric.id] = fromEntries[metric.id] + (metric.value - fromEntries[metric.id]) * eased
     })
 
@@ -71,7 +173,9 @@ const animateMetrics = () => {
 watch(
   () => props.modules.map((module) => `${module.id}:${module.metrics.map((metric) => `${metric.id}:${metric.value}`).join(',')}`).join('|'),
   () => {
+    widgetLayouts.value = reconcileLayouts(widgetLayouts.value)
     animateMetrics()
+    void initGrid()
   },
   { immediate: true },
 )
@@ -80,37 +184,20 @@ onMounted(async () => {
   const saved = window.localStorage.getItem(STORAGE_KEY)
   if (saved) {
     try {
-      const parsed = JSON.parse(saved) as string[]
-      if (Array.isArray(parsed) && parsed.length) {
-        moduleOrder.value = parsed
-      }
+      widgetLayouts.value = reconcileLayouts(JSON.parse(saved) as SystemModuleLayout[])
     } catch {
-      moduleOrder.value = props.modules.map((item) => item.id)
+      widgetLayouts.value = defaultLayouts()
     }
   } else {
-    moduleOrder.value = props.modules.map((item) => item.id)
+    widgetLayouts.value = defaultLayouts()
   }
 
-  await nextTick()
-
-  if (moduleRoot.value) {
-    sortable = new Sortable(moduleRoot.value, {
-      animation: 180,
-      handle: '.situation-left-pulse__module-handle',
-      ghostClass: 'is-ghost',
-      dragClass: 'is-dragging',
-      onEnd: () => {
-        if (!moduleRoot.value) return
-        moduleOrder.value = Array.from(moduleRoot.value.querySelectorAll<HTMLElement>('[data-module-id]')).map((item) => item.dataset.moduleId ?? '')
-        persistOrder()
-      },
-    })
-  }
+  await initGrid()
+  animateMetrics()
 })
 
 onBeforeUnmount(() => {
-  sortable?.destroy()
-  sortable = null
+  destroyGrid()
   if (frameId) {
     window.cancelAnimationFrame(frameId)
   }
@@ -122,48 +209,63 @@ onBeforeUnmount(() => {
     <header class="situation-left-pulse__shell-header">
       <div>
         <span class="situation-left-pulse__eyebrow">System Pulse</span>
-        <strong>系统脉冲区</strong>
+        <strong>系统统计快照</strong>
       </div>
       <button type="button" class="situation-left-pulse__reset" @click="restoreDefault">恢复默认</button>
     </header>
 
-    <div ref="moduleRoot" class="situation-left-pulse__modules">
+    <div ref="gridRoot" class="situation-left-pulse__grid grid-stack">
       <section
-        v-for="(module, index) in orderedModules"
-        :key="module.id"
-        :data-module-id="module.id"
-        class="situation-left-pulse__module"
-        :class="accentClassMap[module.accent]"
-        v-motion
-        :initial="{ opacity: 0, y: 18, scale: 0.97 }"
-        :enter="{ opacity: 1, y: 0, scale: 1, transition: { delay: 120 + index * 80, duration: 420 } }"
+        v-for="(item, index) in displayWidgets"
+        :key="item.module.id"
+        class="grid-stack-item situation-left-pulse__item"
+        :data-widget-id="item.module.id"
+        :gs-id="item.module.id"
+        :gs-x="item.layout.x"
+        :gs-y="item.layout.y"
+        :gs-w="item.layout.w"
+        :gs-h="item.layout.h"
+        :gs-min-h="item.layout.minH"
+        :gs-max-h="item.layout.maxH"
       >
-        <header class="situation-left-pulse__module-head">
-          <div>
-            <span class="situation-left-pulse__eyebrow">{{ module.eyebrow }}</span>
-            <strong>{{ module.title }}</strong>
-          </div>
-          <button type="button" class="situation-left-pulse__module-handle" title="拖拽排序">⋮⋮</button>
-        </header>
-
-        <div class="situation-left-pulse__metric-list">
-          <button
-            v-for="metric in module.metrics"
-            :key="metric.id"
-            type="button"
-            class="situation-left-pulse__metric"
-            @click="emit('open-module', module)"
+        <div class="grid-stack-item-content">
+          <article
+            class="situation-left-pulse__module"
+            :class="accentClassMap[item.module.accent]"
+            v-motion
+            :initial="{ opacity: 0, y: 18, scale: 0.98 }"
+            :enter="{ opacity: 1, y: 0, scale: 1, transition: { delay: 120 + index * 70, duration: 360 } }"
           >
-            <div class="situation-left-pulse__metric-head">
-              <span>{{ metric.label }}</span>
-              <i :class="metric.status ?? 'neutral'" />
+            <header class="situation-left-pulse__module-head">
+              <div>
+                <span class="situation-left-pulse__eyebrow">{{ item.module.eyebrow }}</span>
+                <strong>{{ item.module.title }}</strong>
+              </div>
+              <div class="situation-left-pulse__module-actions">
+                <button type="button" class="situation-left-pulse__open" @click="emit('open-module', item.module)">打开</button>
+                <button type="button" class="situation-left-pulse__module-handle" title="拖拽与缩放模块">⋮⋮</button>
+              </div>
+            </header>
+
+            <div class="situation-left-pulse__metric-grid">
+              <button
+                v-for="metric in item.module.metrics"
+                :key="metric.id"
+                type="button"
+                class="situation-left-pulse__metric"
+                @click="emit('open-module', item.module)"
+              >
+                <span class="situation-left-pulse__metric-label">
+                  <i :class="metric.status ?? 'neutral'" />
+                  {{ metric.label }}
+                </span>
+                <strong>
+                  {{ Math.round(animatedMetricValues[metric.id] ?? metric.value) }}
+                  <small v-if="metric.suffix">{{ metric.suffix }}</small>
+                </strong>
+              </button>
             </div>
-            <strong>
-              {{ Math.round(animatedMetricValues[metric.id] ?? metric.value) }}
-              <small v-if="metric.suffix">{{ metric.suffix }}</small>
-            </strong>
-            <small>{{ metric.detail }}</small>
-          </button>
+          </article>
         </div>
       </section>
     </div>
@@ -175,8 +277,9 @@ onBeforeUnmount(() => {
   display: flex;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .situation-left-pulse__shell-header {
@@ -201,14 +304,16 @@ onBeforeUnmount(() => {
 }
 
 .situation-left-pulse__reset,
-.situation-left-pulse__module-handle {
+.situation-left-pulse__module-handle,
+.situation-left-pulse__open {
   border: 1px solid rgba(118, 168, 240, 0.12);
   background: rgba(8, 16, 28, 0.42);
   color: rgba(202, 220, 244, 0.74);
   cursor: pointer;
 }
 
-.situation-left-pulse__reset {
+.situation-left-pulse__reset,
+.situation-left-pulse__open {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
@@ -217,19 +322,28 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
 }
 
-.situation-left-pulse__modules {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.situation-left-pulse__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.situation-left-pulse__item > .grid-stack-item-content {
+  overflow: hidden;
 }
 
 .situation-left-pulse__module {
   position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(116, 168, 240, 0.1);
-  border-radius: 20px;
+  border-radius: 18px;
   background: linear-gradient(180deg, rgba(8, 16, 28, 0.88) 0%, rgba(9, 15, 25, 0.72) 100%);
-  padding: 14px;
+  padding: 12px;
   backdrop-filter: blur(14px);
 }
 
@@ -265,6 +379,12 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
 }
 
+.situation-left-pulse__module-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .situation-left-pulse__module-handle {
   width: 30px;
   min-height: 30px;
@@ -273,37 +393,40 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
-.situation-left-pulse__metric-list {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
+.situation-left-pulse__metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 0;
 }
 
 .situation-left-pulse__metric {
   border: 1px solid rgba(116, 168, 240, 0.08);
   border-radius: 14px;
   background: rgba(5, 12, 20, 0.5);
-  padding: 10px 12px;
+  padding: 10px;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
+  transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, background 0.24s ease;
 }
 
 .situation-left-pulse__metric:hover {
   transform: translateY(-2px);
   border-color: rgba(137, 190, 255, 0.22);
   box-shadow: 0 14px 28px rgba(2, 8, 15, 0.22);
+  background: rgba(8, 18, 31, 0.74);
 }
 
-.situation-left-pulse__metric-head {
+.situation-left-pulse__metric-label {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 6px;
+  gap: 8px;
+  color: rgba(191, 210, 233, 0.72);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
-.situation-left-pulse__metric-head i {
+.situation-left-pulse__metric-label i {
   display: inline-flex;
   width: 8px;
   height: 8px;
@@ -311,26 +434,22 @@ onBeforeUnmount(() => {
   background: rgba(120, 156, 191, 0.56);
 }
 
-.situation-left-pulse__metric-head i.online {
+.situation-left-pulse__metric-label i.online {
   background: #57d389;
 }
 
-.situation-left-pulse__metric-head i.warning {
+.situation-left-pulse__metric-label i.warning {
   background: #ffb05e;
 }
 
-.situation-left-pulse__metric-head i.offline {
+.situation-left-pulse__metric-label i.offline {
   background: #ff6f7e;
 }
 
-.situation-left-pulse__metric-head span,
-.situation-left-pulse__metric small {
-  color: rgba(191, 210, 233, 0.68);
-  line-height: 1.5;
-}
-
 .situation-left-pulse__metric strong {
-  font-size: 26px;
+  display: block;
+  margin-top: 8px;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -338,24 +457,24 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
-.is-ghost {
-  opacity: 0.38;
+.situation-left-pulse :deep(.grid-stack-item.ui-draggable-dragging .grid-stack-item-content),
+.situation-left-pulse :deep(.grid-stack-item.ui-resizable-resizing .grid-stack-item-content) {
+  box-shadow: 0 18px 34px rgba(2, 8, 15, 0.22);
 }
 
-.is-dragging {
-  cursor: grabbing;
+.situation-left-pulse :deep(.ui-resizable-handle) {
+  filter: brightness(1.25);
 }
 
 @media (max-width: 1180px) {
-  .situation-left-pulse__modules {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .situation-left-pulse__metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 900px) {
-  .situation-left-pulse__modules {
-    grid-template-columns: 1fr;
+  .situation-left-pulse__metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
