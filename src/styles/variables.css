@@ -37,12 +37,12 @@
   --platform-radius-sm: 14px;
   --platform-radius-md: 18px;
   --platform-radius-lg: 24px;
-  --platform-page-gap: clamp(16px, 1vw, 24px);
-  --platform-section-gap: clamp(18px, 1.2vw, 28px);
-  --platform-card-gap: clamp(14px, 0.9vw, 20px);
+  --platform-page-gap: clamp(14px, 0.9vw, 20px);
+  --platform-section-gap: clamp(14px, 1vw, 22px);
+  --platform-card-gap: clamp(10px, 0.75vw, 16px);
   --platform-page-max-width: 2480px;
   --platform-page-max-width-immersive: 2720px;
-  --platform-header-height: 72px;
+  --platform-header-height: 64px;
   --platform-sidebar-width: 264px;
   --platform-sidebar-collapse-width: 84px;
 }

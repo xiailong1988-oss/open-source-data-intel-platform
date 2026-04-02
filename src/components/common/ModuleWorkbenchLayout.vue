@@ -36,7 +36,6 @@ const visibleTabs = computed(() => props.tabs.filter((item) => item.path))
     <div class="platform-page-hero">
       <div class="platform-page-hero__header">
         <div class="platform-page-heading">
-          <span v-if="eyebrow" class="platform-page-heading__eyebrow">{{ eyebrow }}</span>
           <h2>{{ title }}</h2>
           <p>{{ description }}</p>
         </div>

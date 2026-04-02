@@ -10,7 +10,7 @@ import type {
   DashboardCockpitZone,
 } from '../../types/dashboardCockpit'
 
-const STREAM_ROW_HEIGHT = 92
+const STREAM_ROW_HEIGHT = 68
 const STREAM_VISIBLE_ROWS = 6
 
 /**
@@ -54,8 +54,6 @@ const streamRenderItems = computed(() => {
   if (!props.tickerItems.length) return []
   return props.tickerItems.concat(props.tickerItems.slice(0, STREAM_VISIBLE_ROWS))
 })
-
-const streamViewportHeight = computed(() => STREAM_ROW_HEIGHT * STREAM_VISIBLE_ROWS)
 
 const focusTitle = computed(() => {
   if (props.displayPoint) return props.displayPoint.title
@@ -171,9 +169,8 @@ onBeforeUnmount(() => {
   >
     <header class="situation-signal-rail__header">
       <div class="situation-signal-rail__title-group">
-        <span class="situation-signal-rail__eyebrow">Signal Guide</span>
-        <strong>SIGNAL FLOW</strong>
-        <small>海淀区持续更新的风险、事件与重点关注流。</small>
+        <strong>重要情报流</strong>
+        <small>持续更新海淀区风险、事件与重点关注对象。</small>
       </div>
 
       <div class="situation-signal-rail__controls">
@@ -189,14 +186,14 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <div class="situation-signal-rail__meta">
-      <span>{{ tickerItems.length }} items</span>
-      <span>{{ isPlaybackPaused ? 'paused' : 'live' }}</span>
-      <span>{{ activeLayer }}</span>
-    </div>
+      <div class="situation-signal-rail__meta">
+        <span>{{ tickerItems.length }} 条</span>
+        <span>{{ isPlaybackPaused ? '暂停' : '滚动中' }}</span>
+        <span>{{ activeLayer }}</span>
+      </div>
 
     <div v-if="tickerItems.length" class="situation-signal-rail__stream">
-      <div class="situation-signal-rail__viewport" :style="{ height: `${streamViewportHeight}px` }">
+      <div class="situation-signal-rail__viewport">
         <div class="situation-signal-rail__track" :style="streamTrackStyle">
           <button
             v-for="(item, index) in streamRenderItems"
@@ -226,7 +223,6 @@ onBeforeUnmount(() => {
 
     <footer class="situation-signal-rail__focus">
       <div class="situation-signal-rail__focus-head">
-        <span class="situation-signal-rail__eyebrow">Current Focus</span>
         <span class="situation-signal-rail__focus-caption">{{ focusCaption }}</span>
       </div>
 
@@ -238,8 +234,8 @@ onBeforeUnmount(() => {
       <small class="situation-signal-rail__guide">{{ guideInstruction }}</small>
 
       <div class="situation-signal-rail__actions">
-        <button type="button" @click="emit('open-detail')">OPEN DETAIL</button>
-        <button type="button" @click="emit('open-search')">SEARCH TRACE</button>
+        <button type="button" @click="emit('open-detail')">查看详情</button>
+        <button type="button" @click="emit('open-search')">检索溯源</button>
       </div>
 
       <div v-if="railActions.length" class="situation-signal-rail__quick-list">
@@ -268,10 +264,11 @@ onBeforeUnmount(() => {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   min-height: 0;
   height: 100%;
-  padding: 6px 0 8px 14px;
+  overflow: hidden;
+  padding: 2px 0 4px 10px;
   border-left: 1px solid rgba(116, 170, 240, 0.08);
   background:
     linear-gradient(180deg, rgba(7, 15, 24, 0.12) 0%, rgba(7, 15, 24, 0.38) 100%);
@@ -280,7 +277,7 @@ onBeforeUnmount(() => {
 .situation-signal-rail__header {
   display: flex;
   justify-content: space-between;
-  gap: 14px;
+  gap: 8px;
   align-items: flex-start;
 }
 
@@ -288,12 +285,12 @@ onBeforeUnmount(() => {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .situation-signal-rail__eyebrow {
   color: #8fbfff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -308,7 +305,7 @@ onBeforeUnmount(() => {
 
 .situation-signal-rail__title-group strong {
   font-size: 16px;
-  letter-spacing: 0.12em;
+  line-height: 1.2;
 }
 
 .situation-signal-rail__title-group small,
@@ -317,12 +314,13 @@ onBeforeUnmount(() => {
 .situation-signal-rail__guide,
 .situation-signal-rail__empty small {
   color: rgba(210, 224, 242, 0.68);
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 11px;
 }
 
 .situation-signal-rail__controls {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .situation-signal-rail__controls button,
@@ -339,8 +337,8 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
 }
 
 .situation-signal-rail__controls button:hover,
@@ -372,20 +370,21 @@ onBeforeUnmount(() => {
   padding: 0 8px;
   color: rgba(196, 214, 236, 0.7);
   font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
   background: rgba(7, 15, 25, 0.18);
 }
 
 .situation-signal-rail__stream {
   min-height: 0;
   flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .situation-signal-rail__viewport {
+  height: 100%;
+  min-height: 300px;
   overflow: hidden;
   border: 1px solid rgba(118, 168, 238, 0.08);
-  border-radius: 18px;
+  border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(7, 15, 25, 0.52) 0%, rgba(7, 15, 25, 0.18) 100%);
   box-shadow: inset 0 1px 0 rgba(157, 199, 255, 0.03);
@@ -398,13 +397,13 @@ onBeforeUnmount(() => {
 
 .situation-signal-rail__item {
   display: flex;
-  min-height: 92px;
+  min-height: 68px;
   flex-direction: column;
   justify-content: center;
   gap: 5px;
   border: 0;
   border-bottom: 1px solid rgba(118, 168, 238, 0.04);
-  padding: 10px 12px;
+  padding: 9px 12px;
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -413,6 +412,11 @@ onBeforeUnmount(() => {
     border-color 0.28s ease,
     transform 0.28s ease,
     box-shadow 0.28s ease;
+}
+
+.situation-signal-rail__item strong {
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .situation-signal-rail__item:hover,
@@ -427,11 +431,9 @@ onBeforeUnmount(() => {
 .situation-signal-rail__item-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 10px;
+  gap: 5px 8px;
   color: #91c2ff;
   font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .situation-signal-rail__item-meta .is-layer {
@@ -442,20 +444,23 @@ onBeforeUnmount(() => {
 .situation-signal-rail__focus {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   border-top: 1px solid rgba(118, 168, 238, 0.08);
-  padding-top: 10px;
+  padding-top: 8px;
+  flex: 0 0 auto;
+  max-height: 200px;
+  overflow: auto;
 }
 
 .situation-signal-rail__focus-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .situation-signal-rail__focus-title {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.45;
 }
 
@@ -470,20 +475,29 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
+.situation-signal-rail__focus-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .situation-signal-rail__actions,
 .situation-signal-rail__quick-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .situation-signal-rail__actions button,
 .situation-signal-rail__quick-item {
   min-height: 28px;
-  padding: 0 9px;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.situation-signal-rail__quick-list {
+  margin-top: -1px;
 }
 
 .situation-signal-rail__empty {
@@ -495,11 +509,15 @@ onBeforeUnmount(() => {
   padding: 16px 0;
 }
 
-@media (max-width: 1560px) {
+@media (max-width: 1180px) {
   .situation-signal-rail {
     border-left: 0;
     border-top: 1px solid rgba(116, 170, 240, 0.12);
-    padding: 12px 0 0;
+    padding: 8px 0 0;
+  }
+
+  .situation-signal-rail__viewport {
+    min-height: 260px;
   }
 }
 </style>

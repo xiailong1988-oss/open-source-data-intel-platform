@@ -35,11 +35,15 @@ const initialCockpitLayer = computed<DashboardCockpitLayer>(() => {
 
 <style scoped>
 .dashboard {
-  display: block;
+  display: flex;
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
 }
 
 .dashboard :deep(.haidian-cockpit) {
-  min-height: calc(100vh - 118px);
+  flex: 1 1 auto;
+  height: calc(100vh - var(--platform-header-height) - 32px);
+  min-height: calc(100vh - var(--platform-header-height) - 32px);
 }
 </style>

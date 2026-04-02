@@ -14,7 +14,6 @@ defineProps<{
 <template>
   <div class="page-section-header" :class="{ 'page-section-header--compact': compact }">
     <div class="page-section-header__content">
-      <span v-if="eyebrow" class="page-section-header__eyebrow">{{ eyebrow }}</span>
       <h3>{{ title }}</h3>
       <p v-if="description">{{ description }}</p>
     </div>
@@ -29,46 +28,35 @@ defineProps<{
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
 }
 
 .page-section-header--compact h3 {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .page-section-header__content {
   min-width: 0;
 }
 
-.page-section-header__eyebrow {
-  display: inline-flex;
-  margin-bottom: 6px;
-  border-radius: 999px;
-  background: var(--platform-accent-soft);
-  padding: 4px 10px;
-  color: var(--platform-accent-strong);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-}
-
 .page-section-header h3 {
   margin: 0;
   color: var(--platform-text-primary);
-  font-size: 18px;
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .page-section-header p {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   color: var(--platform-text-secondary);
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .page-section-header__actions {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 

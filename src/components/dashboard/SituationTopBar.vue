@@ -16,6 +16,7 @@ defineEmits<{
   (event: 'focus-district'): void
   (event: 'toggle-sidebar'): void
   (event: 'reset-view'): void
+  (event: 'reset-layout'): void
 }>()
 </script>
 
@@ -27,19 +28,20 @@ defineEmits<{
     :enter="{ opacity: 1, y: 0, transition: { duration: 520 } }"
   >
     <div class="situation-top-chrome__brand">
-      <strong>HAIDIAN TERMINAL</strong>
-      <span class="situation-top-chrome__state">ACTIVE</span>
+      <strong>海淀区综合态势驾驶舱</strong>
+      <span class="situation-top-chrome__state">在线</span>
     </div>
 
     <div class="situation-top-chrome__status">
       <span>{{ district }}</span>
       <span>{{ activeLayer }}</span>
       <span>{{ activeBasemap }}</span>
-      <span>UPDATE {{ latestUpdate }}</span>
+      <span>更新 {{ latestUpdate }}</span>
       <span v-if="basemapNotice" class="is-notice">{{ basemapNotice }}</span>
     </div>
 
     <div class="situation-top-chrome__actions">
+      <button type="button" @click="$emit('reset-layout')">恢复版面</button>
       <button type="button" @click="$emit('focus-district')">聚焦海淀</button>
       <button type="button" @click="$emit('toggle-sidebar')">
         {{ isSidebarHidden ? '展开侧栏' : '专注视图' }}
@@ -54,9 +56,9 @@ defineEmits<{
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
-  min-height: 46px;
-  padding: 2px 0 4px;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0;
 }
 
 .situation-top-chrome__brand {
@@ -68,10 +70,9 @@ defineEmits<{
 
 .situation-top-chrome__brand strong {
   color: #f4f8ff;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .situation-top-chrome__state {
@@ -79,12 +80,10 @@ defineEmits<{
   align-items: center;
   min-height: 20px;
   border: 1px solid rgba(255, 112, 101, 0.34);
-  padding: 0 7px;
+  padding: 0 8px;
   color: #ff9c92;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
 }
 
 .situation-top-chrome__status {
@@ -103,8 +102,6 @@ defineEmits<{
   padding: 0 8px;
   color: rgba(214, 227, 243, 0.72);
   font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
   background: rgba(6, 14, 23, 0.2);
 }
 
@@ -121,12 +118,10 @@ defineEmits<{
 .situation-top-chrome__actions button {
   border: 1px solid rgba(113, 160, 226, 0.14);
   padding: 0 10px;
-  min-height: 24px;
+  min-height: 26px;
   background: rgba(7, 16, 26, 0.2);
   color: #a6c2e3;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-size: 11px;
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }

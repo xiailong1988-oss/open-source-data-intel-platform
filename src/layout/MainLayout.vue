@@ -120,12 +120,13 @@ watch(
 .platform-layout__main {
   position: relative;
   min-width: 0;
-  padding: clamp(18px, 1.1vw, 30px);
+  padding: clamp(14px, 0.9vw, 24px);
   background: transparent;
 }
 
 .platform-layout__main--immersive {
-  padding-inline: clamp(12px, 0.72vw, 22px);
+  padding-inline: clamp(10px, 0.64vw, 18px);
+  padding-bottom: 8px;
 }
 
 .platform-layout__viewport {
@@ -135,11 +136,12 @@ watch(
   gap: var(--platform-section-gap);
   width: min(100%, var(--platform-page-max-width));
   margin: 0 auto;
-  padding-bottom: 32px;
+  padding-bottom: 18px;
 }
 
 .platform-layout__viewport--immersive {
   width: min(100%, var(--platform-page-max-width-immersive));
+  padding-bottom: 0;
 }
 
 .platform-layout__drawer-host {

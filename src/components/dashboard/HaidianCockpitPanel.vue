@@ -1,8 +1,9 @@
-﻿<script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { GridStack, type GridStackWidget } from 'gridstack'
 import HaidianCockpitMapStage from './HaidianCockpitMapStage.vue'
 import SituationBottomInfoBand from './SituationBottomInfoBand.vue'
 import SituationLeftPulsePanel from './SituationLeftPulsePanel.vue'
@@ -35,10 +36,173 @@ const props = withDefaults(
   },
 )
 
+type CockpitPanelId = 'left' | 'map' | 'rail' | 'bottom'
+
+interface CockpitPanelLayout extends GridStackWidget {
+  id: CockpitPanelId
+  x: number
+  y: number
+  w: number
+  h: number
+  minW: number
+  maxW: number
+  minH: number
+  maxH: number
+}
+
+const COCKPIT_GRID_COLUMNS = 12
+const COCKPIT_GRID_ROWS = 12
+const COCKPIT_GRID_MARGIN = 10
+const LAYOUT_STORAGE_KEY = 'dashboard-cockpit-layout-v5'
+
 const router = useRouter()
 const appStore = useAppStore()
 const { isSidebarHidden } = storeToRefs(appStore)
+const workspaceRef = ref<HTMLElement | null>(null)
+const gridRootRef = ref<HTMLElement | null>(null)
 const mapStageRef = ref<InstanceType<typeof HaidianCockpitMapStage> | null>(null)
+const panelLayouts = ref<CockpitPanelLayout[]>([])
+
+let grid: GridStack | null = null
+let workspaceResizeObserver: ResizeObserver | null = null
+
+const panelTitleMap: Record<CockpitPanelId, string> = {
+  left: '左侧统计区',
+  map: '地图区',
+  rail: '情报流区',
+  bottom: '底部摘要区',
+}
+
+const panelConstraintMap: Record<
+  CockpitPanelId,
+  {
+    minW: number
+    maxW: number
+    minH: number
+    maxH: number
+  }
+> = {
+  left: { minW: 2, maxW: 5, minH: 4, maxH: 12 },
+  map: { minW: 4, maxW: 10, minH: 5, maxH: 12 },
+  rail: { minW: 3, maxW: 6, minH: 5, maxH: 12 },
+  bottom: { minW: 6, maxW: 12, minH: 3, maxH: 6 },
+}
+
+const defaultPanelLayouts = (): CockpitPanelLayout[] => [
+  { id: 'left', x: 0, y: 0, w: 3, h: 8, ...panelConstraintMap.left },
+  { id: 'map', x: 3, y: 0, w: 5, h: 8, ...panelConstraintMap.map },
+  { id: 'rail', x: 8, y: 0, w: 4, h: 8, ...panelConstraintMap.rail },
+  { id: 'bottom', x: 0, y: 8, w: 12, h: 4, ...panelConstraintMap.bottom },
+]
+
+const normalizeLayout = (layout: Partial<CockpitPanelLayout> & { id: CockpitPanelId }): CockpitPanelLayout => {
+  const constraint = panelConstraintMap[layout.id]
+
+  return {
+    id: layout.id,
+    x: Math.max(0, layout.x ?? 0),
+    y: Math.max(0, layout.y ?? 0),
+    w: Math.min(constraint.maxW, Math.max(constraint.minW, layout.w ?? constraint.minW)),
+    h: Math.min(constraint.maxH, Math.max(constraint.minH, layout.h ?? constraint.minH)),
+    minW: constraint.minW,
+    maxW: constraint.maxW,
+    minH: constraint.minH,
+    maxH: constraint.maxH,
+  }
+}
+
+const reconcileLayouts = (candidate: CockpitPanelLayout[]) => {
+  const fallbackMap = new Map(defaultPanelLayouts().map((layout) => [layout.id, layout]))
+  const candidateMap = new Map(candidate.map((layout) => [layout.id, layout]))
+
+  return (['left', 'map', 'rail', 'bottom'] as CockpitPanelId[])
+    .map((id) => normalizeLayout(candidateMap.get(id) ?? fallbackMap.get(id)!))
+    .sort((left, right) => (left.y - right.y) || (left.x - right.x))
+}
+
+const captureLayoutsFromDom = () => {
+  if (!gridRootRef.value) {
+    return []
+  }
+
+  return Array.from(gridRootRef.value.querySelectorAll<HTMLElement>('.grid-stack-item[data-panel-id]'))
+    .map((item) =>
+      normalizeLayout({
+        id: item.dataset.panelId as CockpitPanelId,
+        x: Number(item.getAttribute('gs-x') ?? 0),
+        y: Number(item.getAttribute('gs-y') ?? 0),
+        w: Number(item.getAttribute('gs-w') ?? 1),
+        h: Number(item.getAttribute('gs-h') ?? 1),
+      }),
+    )
+    .sort((left, right) => (left.y - right.y) || (left.x - right.x))
+}
+
+const persistLayouts = (layouts: CockpitPanelLayout[]) => {
+  window.localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layouts))
+}
+
+const destroyGrid = () => {
+  if (!grid) {
+    return
+  }
+
+  grid.offAll()
+  grid.destroy(false)
+  grid = null
+}
+
+const updateGridCellHeight = () => {
+  if (!grid || !workspaceRef.value) {
+    return
+  }
+
+  const availableHeight = workspaceRef.value.clientHeight
+  const totalGap = COCKPIT_GRID_MARGIN * (COCKPIT_GRID_ROWS - 1)
+  const nextCellHeight = Math.max(56, Math.floor((availableHeight - totalGap) / COCKPIT_GRID_ROWS))
+  grid.cellHeight(nextCellHeight)
+}
+
+const initGrid = async () => {
+  if (!gridRootRef.value) {
+    return
+  }
+
+  destroyGrid()
+  await nextTick()
+
+  if (!gridRootRef.value) {
+    return
+  }
+
+  grid = GridStack.init(
+    {
+      column: COCKPIT_GRID_COLUMNS,
+      margin: COCKPIT_GRID_MARGIN,
+      minRow: COCKPIT_GRID_ROWS,
+      maxRow: COCKPIT_GRID_ROWS,
+      float: false,
+      animate: true,
+      disableDrag: false,
+      disableResize: false,
+      alwaysShowResizeHandle: true,
+      handle: '.haidian-cockpit__panel-drag',
+      resizable: { handles: 'all' },
+      cellHeight: 72,
+    },
+    gridRootRef.value,
+  )
+
+  updateGridCellHeight()
+
+  grid.on('change', () => {
+    const nextLayouts = reconcileLayouts(captureLayoutsFromDom())
+    panelLayouts.value = nextLayouts
+    persistLayouts(nextLayouts)
+  })
+}
+
+const displayPanels = computed(() => (panelLayouts.value.length ? panelLayouts.value : defaultPanelLayouts()))
 
 const activeLayer = ref<DashboardCockpitLayer>(props.initialLayer)
 const providerFactoryState = getCockpitMapProviderFactoryState()
@@ -52,10 +216,10 @@ const isPlaybackPaused = ref(false)
 const isStreamHovered = ref(false)
 const showAllHighlights = ref(false)
 const mapLayout = ref<DashboardMapLayoutSnapshot | null>(null)
-const mapCursor = reactive({ visible: false, x: 0, y: 0 })
+const mapCursor = ref({ visible: false, x: 0, y: 0 })
 let tickerTimer: number | null = null
 
-const filters = reactive({
+const filters = ref({
   timeRange: '今日' as '今日' | '近7日',
   area: '全部' as string,
   riskLevel: '全部' as DashboardCockpitRiskLevel | '全部',
@@ -74,7 +238,7 @@ const referenceTime = parseTime('2026-03-25 23:59')
 const isInRange = (value: string) => {
   const diff = referenceTime - parseTime(value)
   const day = 24 * 60 * 60 * 1000
-  return filters.timeRange === '今日' ? diff <= day : diff <= day * 7
+  return filters.value.timeRange === '今日' ? diff <= day : diff <= day * 7
 }
 
 const pointIndex = computed(() => new Map(props.overview.points.map((point) => [point.id, point])))
@@ -87,16 +251,19 @@ const signalItems = computed<DashboardCockpitHeadline[]>(() => props.overview.he
 const layerPoints = computed(() => props.overview.points.filter((point) => point.layer === activeLayer.value))
 const filteredPoints = computed(() =>
   layerPoints.value.filter((point) => {
-    if (filters.area !== '全部' && point.area !== filters.area) return false
-    if (filters.riskLevel !== '全部' && point.riskLevel !== filters.riskLevel) return false
+    if (filters.value.area !== '全部' && point.area !== filters.value.area) return false
+    if (filters.value.riskLevel !== '全部' && point.riskLevel !== filters.value.riskLevel) return false
     return isInRange(point.occurredAt)
   }),
 )
 
 const filteredZones = computed(() =>
   props.overview.zones.filter((zone) => {
-    if (filters.area !== '全部') {
-      return zone.name === filters.area || zone.featuredPointIds.some((id) => filteredPoints.value.some((point) => point.id === id))
+    if (filters.value.area !== '全部') {
+      return (
+        zone.name === filters.value.area ||
+        zone.featuredPointIds.some((id) => filteredPoints.value.some((point) => point.id === id))
+      )
     }
 
     return zone.featuredPointIds.some((id) => filteredPoints.value.some((point) => point.id === id))
@@ -105,7 +272,7 @@ const filteredZones = computed(() =>
 
 const priorityPoints = computed(() => [...filteredPoints.value].sort((left, right) => right.priority - left.priority))
 const highlightedPointIds = computed(() => {
-  const quota = filters.displayMode === '驾驶舱降噪' ? 3 : 6
+  const quota = filters.value.displayMode === '驾驶舱降噪' ? 3 : 6
   return priorityPoints.value.slice(0, quota).map((point) => point.id)
 })
 
@@ -144,8 +311,8 @@ const visibleHighlights = computed(() =>
       const point = pointIndex.value.get(highlight.pointId)
       if (!point) return false
       if (point.layer !== activeLayer.value) return false
-      if (filters.area !== '全部' && point.area !== filters.area) return false
-      if (filters.riskLevel !== '全部' && point.riskLevel !== filters.riskLevel) return false
+      if (filters.value.area !== '全部' && point.area !== filters.value.area) return false
+      if (filters.value.riskLevel !== '全部' && point.riskLevel !== filters.value.riskLevel) return false
       return isInRange(point.occurredAt)
     })
     .slice(0, 6),
@@ -154,6 +321,14 @@ const visibleHighlights = computed(() =>
 const guideInstruction = computed(() =>
   showAllHighlights.value ? '联线层已展开，可从地图顶端或底端直接进入重点信息详情。' : currentProfile.value.instruction,
 )
+
+const restoreDefaultLayout = async () => {
+  const nextLayouts = defaultPanelLayouts()
+  panelLayouts.value = nextLayouts
+  persistLayouts(nextLayouts)
+  await initGrid()
+  ElMessage.success('首页版面已恢复默认布局')
+}
 
 const openRouteLink = (link: DashboardCockpitLink) => {
   if (link.path) {
@@ -198,7 +373,7 @@ const focusZone = (zoneId: string) => {
 
   selectedZoneId.value = zoneId
   selectedPointId.value = ''
-  filters.area = zone.name
+  filters.value.area = zone.name
 }
 
 const focusTopPriorityPoint = async () => {
@@ -260,7 +435,7 @@ const openHighlight = (highlight: DashboardMapHighlight) => {
 const focusDistrictView = () => {
   selectedPointId.value = ''
   selectedZoneId.value = ''
-  filters.area = '全部'
+  filters.value.area = '全部'
   mapStageRef.value?.focusDistrict()
 }
 
@@ -273,23 +448,25 @@ const handleMapPointerMove = (event: MouseEvent) => {
   if (!currentTarget) return
 
   const rect = currentTarget.getBoundingClientRect()
-  mapCursor.visible = true
-  mapCursor.x = event.clientX - rect.left
-  mapCursor.y = event.clientY - rect.top
+  mapCursor.value = {
+    visible: true,
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  }
 }
 
 const handleMapPointerLeave = () => {
-  mapCursor.visible = false
+  mapCursor.value = { visible: false, x: 0, y: 0 }
   hoveredPointId.value = ''
 }
 
 const resetView = async () => {
   activeLayer.value = props.initialLayer
   activeBasemap.value = props.overview.defaultBasemap ?? providerFactoryState.defaultBasemap
-  filters.timeRange = '今日'
-  filters.area = '全部'
-  filters.riskLevel = '全部'
-  filters.displayMode = '驾驶舱降噪'
+  filters.value.timeRange = '今日'
+  filters.value.area = '全部'
+  filters.value.riskLevel = '全部'
+  filters.value.displayMode = '驾驶舱降噪'
   selectedPointId.value = ''
   selectedZoneId.value = ''
   hoveredPointId.value = ''
@@ -306,13 +483,14 @@ const resetView = async () => {
 const toggleSidebarVisibility = () => {
   const nextHidden = !isSidebarHidden.value
   appStore.toggleSidebarVisibility()
+  window.setTimeout(() => updateGridCellHeight(), 260)
   ElMessage.success(nextHidden ? '已切换为专注视图' : '已展开侧栏')
 }
 
 const setLayer = async (layer: DashboardCockpitLayer) => {
   activeLayer.value = layer
-  filters.area = '全部'
-  filters.riskLevel = '全部'
+  filters.value.area = '全部'
+  filters.value.riskLevel = '全部'
   selectedPointId.value = ''
   selectedZoneId.value = ''
   hoveredPointId.value = ''
@@ -324,8 +502,8 @@ const handleSignalClick = async (signalId: string) => {
   if (!target) return
 
   activeLayer.value = target.layer
-  filters.area = '全部'
-  filters.riskLevel = target.risk ?? '全部'
+  filters.value.area = '全部'
+  filters.value.riskLevel = target.risk ?? '全部'
   selectedZoneId.value = ''
   selectedPointId.value = ''
   hoveredPointId.value = ''
@@ -400,8 +578,8 @@ const openTickerDetail = async (index: number) => {
 
   if (target.layer !== activeLayer.value) {
     activeLayer.value = target.layer
-    filters.area = '全部'
-    filters.riskLevel = '全部'
+    filters.value.area = '全部'
+    filters.value.riskLevel = '全部'
     selectedZoneId.value = ''
     selectedPointId.value = ''
     hoveredPointId.value = ''
@@ -435,7 +613,7 @@ watch(
 )
 
 watch(
-  () => [activeLayer.value, filters.timeRange, filters.area, filters.riskLevel].join('|'),
+  () => [activeLayer.value, filters.value.timeRange, filters.value.area, filters.value.riskLevel].join('|'),
   () => {
     if (selectedPointId.value && !filteredPoints.value.some((point) => point.id === selectedPointId.value)) {
       selectedPointId.value = ''
@@ -454,13 +632,42 @@ watch(
   },
 )
 
+watch(
+  () => isSidebarHidden.value,
+  () => {
+    window.setTimeout(() => updateGridCellHeight(), 260)
+  },
+)
+
 onMounted(async () => {
+  const savedLayout = window.localStorage.getItem(LAYOUT_STORAGE_KEY)
+  if (savedLayout) {
+    try {
+      panelLayouts.value = reconcileLayouts(JSON.parse(savedLayout) as CockpitPanelLayout[])
+    } catch {
+      panelLayouts.value = defaultPanelLayouts()
+    }
+  } else {
+    panelLayouts.value = defaultPanelLayouts()
+  }
+
+  await nextTick()
+  await initGrid()
+
+  if (workspaceRef.value) {
+    workspaceResizeObserver = new ResizeObserver(() => updateGridCellHeight())
+    workspaceResizeObserver.observe(workspaceRef.value)
+  }
+
   await focusTopPriorityPoint()
   restartTickerAutoplay()
 })
 
 onBeforeUnmount(() => {
   clearTickerAutoplay()
+  workspaceResizeObserver?.disconnect()
+  workspaceResizeObserver = null
+  destroyGrid()
 })
 </script>
 
@@ -473,118 +680,227 @@ onBeforeUnmount(() => {
       :latest-update="latestUpdate"
       :basemap-notice="basemapNotice"
       :is-sidebar-hidden="isSidebarHidden"
+      @reset-layout="restoreDefaultLayout"
       @focus-district="focusDistrictView"
       @toggle-sidebar="toggleSidebarVisibility"
       @reset-view="resetView"
     />
 
-    <div class="haidian-cockpit__stage">
-      <SituationLeftPulsePanel :modules="props.overview.systemMetrics" @open-module="openModuleDetail" />
+    <div ref="workspaceRef" class="haidian-cockpit__workspace">
+      <div ref="gridRootRef" class="haidian-cockpit__grid grid-stack">
+        <section
+          v-for="panel in displayPanels"
+          :key="panel.id"
+          class="grid-stack-item haidian-cockpit__panel-item"
+          :data-panel-id="panel.id"
+          :gs-id="panel.id"
+          :gs-x="panel.x"
+          :gs-y="panel.y"
+          :gs-w="panel.w"
+          :gs-h="panel.h"
+          :gs-min-w="panel.minW"
+          :gs-max-w="panel.maxW"
+          :gs-min-h="panel.minH"
+          :gs-max-h="panel.maxH"
+        >
+          <div class="grid-stack-item-content">
+            <article class="haidian-cockpit__panel-shell" :class="`haidian-cockpit__panel-shell--${panel.id}`">
+              <button type="button" class="haidian-cockpit__panel-drag" :title="`拖拽或缩放${panelTitleMap[panel.id]}`">
+                调整
+              </button>
 
-      <div class="haidian-cockpit__map-column" @mousemove="handleMapPointerMove" @mouseleave="handleMapPointerLeave">
-        <div class="haidian-cockpit__overlay">
-          <SituationMapOverlayBar
-            :signal-items="signalItems"
-            :layers="props.overview.layers"
-            :active-layer="activeLayer"
-            :is-highlight-expanded="showAllHighlights"
-            @signal-click="handleSignalClick"
-            @layer-select="setLayer"
-            @toggle-highlights="toggleHighlightPanel"
-          />
-        </div>
+              <SituationLeftPulsePanel
+                v-if="panel.id === 'left'"
+                class="haidian-cockpit__left-panel"
+                :modules="props.overview.systemMetrics"
+                @open-module="openModuleDetail"
+              />
 
-        <HaidianCockpitMapStage
-          ref="mapStageRef"
-          class="haidian-cockpit__map-stage"
-          :district="props.overview.district"
-          :map-bounds="props.overview.mapBounds"
-          :points="filteredPoints"
-          :zones="filteredZones"
-          :selected-point-id="selectedPointId"
-          :selected-zone-id="selectedZoneId"
-          :hovered-point-id="hoveredPointId"
-          :highlighted-point-ids="highlightedPointIds"
-          :active-layer="activeLayer"
-          :active-basemap="activeBasemap"
-          @select-point="focusPoint"
-          @select-zone="focusZone"
-          @layout-change="handleMapLayoutChange"
-          @basemap-error="handleBasemapError"
-        />
+              <div
+                v-else-if="panel.id === 'map'"
+                class="haidian-cockpit__map-column"
+                @mousemove="handleMapPointerMove"
+                @mouseleave="handleMapPointerLeave"
+              >
+                <div class="haidian-cockpit__overlay">
+                  <SituationMapOverlayBar
+                    :signal-items="signalItems"
+                    :layers="props.overview.layers"
+                    :active-layer="activeLayer"
+                    :is-highlight-expanded="showAllHighlights"
+                    @signal-click="handleSignalClick"
+                    @layer-select="setLayer"
+                    @toggle-highlights="toggleHighlightPanel"
+                  />
+                </div>
 
-        <SituationMapHighlightLayer
-          :visible="showAllHighlights"
-          :layout="mapLayout"
-          :highlights="visibleHighlights"
-          :selected-point-id="selectedPointId"
-          :hovered-point-id="hoveredPointId"
-          @open-highlight="openHighlight"
-          @hover-highlight="(pointId) => (hoveredPointId = pointId)"
-          @leave-highlight="hoveredPointId = ''"
-        />
+                <HaidianCockpitMapStage
+                  ref="mapStageRef"
+                  class="haidian-cockpit__map-stage"
+                  :district="props.overview.district"
+                  :map-bounds="props.overview.mapBounds"
+                  :points="filteredPoints"
+                  :zones="filteredZones"
+                  :selected-point-id="selectedPointId"
+                  :selected-zone-id="selectedZoneId"
+                  :hovered-point-id="hoveredPointId"
+                  :highlighted-point-ids="highlightedPointIds"
+                  :active-layer="activeLayer"
+                  :active-basemap="activeBasemap"
+                  @select-point="focusPoint"
+                  @select-zone="focusZone"
+                  @layout-change="handleMapLayoutChange"
+                  @basemap-error="handleBasemapError"
+                />
 
-        <div
-          v-if="mapCursor.visible"
-          class="haidian-cockpit__cursor-glow"
-          :style="{ left: `${mapCursor.x}px`, top: `${mapCursor.y}px` }"
-        />
+                <SituationMapHighlightLayer
+                  :visible="showAllHighlights"
+                  :layout="mapLayout"
+                  :highlights="visibleHighlights"
+                  :selected-point-id="selectedPointId"
+                  :hovered-point-id="hoveredPointId"
+                  @open-highlight="openHighlight"
+                  @hover-highlight="(pointId) => (hoveredPointId = pointId)"
+                  @leave-highlight="hoveredPointId = ''"
+                />
+
+                <div
+                  v-if="mapCursor.visible"
+                  class="haidian-cockpit__cursor-glow"
+                  :style="{ left: `${mapCursor.x}px`, top: `${mapCursor.y}px` }"
+                />
+              </div>
+
+              <SituationSignalRail
+                v-else-if="panel.id === 'rail'"
+                class="haidian-cockpit__signal-panel"
+                :active-layer="activeLayer"
+                :display-point="displayPoint"
+                :display-zone="displayZone"
+                :focus-summary="focusSummary"
+                :focus-meta="focusMeta"
+                :guide-instruction="guideInstruction"
+                :focus-links="focusLinks"
+                :zone-points="selectedZonePoints"
+                :current-topics="currentTopics"
+                :ticker-items="currentTicker"
+                :active-ticker-index="activeTickerIndex"
+                :is-playback-paused="isPlaybackPaused"
+                @open-detail="openSelectedDetail"
+                @open-search="() => openSearch(displayPoint?.title ?? displayZone?.keyword)"
+                @open-link="openRouteLink"
+                @topic-click="openSearch"
+                @focus-point="focusPoint"
+                @select-ticker="openTickerDetail"
+                @previous="playPreviousTicker"
+                @next="playNextTicker"
+                @toggle-playback="togglePlayback"
+                @stream-hover-start="handleTickerHoverStart"
+                @stream-hover-end="handleTickerHoverEnd"
+              />
+
+              <SituationBottomInfoBand
+                v-else
+                class="haidian-cockpit__bottom-band"
+                :boards="props.overview.businessBoardMetrics"
+                @open-board="openBusinessBoard"
+              />
+            </article>
+          </div>
+        </section>
       </div>
-
-      <SituationSignalRail
-        :active-layer="activeLayer"
-        :display-point="displayPoint"
-        :display-zone="displayZone"
-        :focus-summary="focusSummary"
-        :focus-meta="focusMeta"
-        :guide-instruction="guideInstruction"
-        :focus-links="focusLinks"
-        :zone-points="selectedZonePoints"
-        :current-topics="currentTopics"
-        :ticker-items="currentTicker"
-        :active-ticker-index="activeTickerIndex"
-        :is-playback-paused="isPlaybackPaused"
-        @open-detail="openSelectedDetail"
-        @open-search="() => openSearch(displayPoint?.title ?? displayZone?.keyword)"
-        @open-link="openRouteLink"
-        @topic-click="openSearch"
-        @focus-point="focusPoint"
-        @select-ticker="openTickerDetail"
-        @previous="playPreviousTicker"
-        @next="playNextTicker"
-        @toggle-playback="togglePlayback"
-        @stream-hover-start="handleTickerHoverStart"
-        @stream-hover-end="handleTickerHoverEnd"
-      />
     </div>
-
-    <SituationBottomInfoBand :boards="props.overview.businessBoardMetrics" @open-board="openBusinessBoard" />
   </section>
 </template>
 
 <style scoped>
 .haidian-cockpit {
-  display: flex;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
-  min-height: calc(100vh - 118px);
-  flex-direction: column;
+  min-height: 0;
+  height: 100%;
   gap: 10px;
+  overflow: hidden;
 }
 
-.haidian-cockpit__stage {
-  --cockpit-stage-height: clamp(304px, 40vh, 430px);
-  display: grid;
-  grid-template-columns: clamp(200px, 16vw, 248px) minmax(0, 1fr) clamp(318px, 21vw, 388px);
-  grid-template-rows: minmax(0, var(--cockpit-stage-height));
-  gap: 12px;
+.haidian-cockpit__workspace,
+.haidian-cockpit__grid {
+  min-width: 0;
   min-height: 0;
-  height: var(--cockpit-stage-height);
-  align-items: stretch;
+  height: 100%;
+}
+
+.haidian-cockpit__panel-item > .grid-stack-item-content {
+  overflow: hidden;
+}
+
+.haidian-cockpit__panel-shell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(109, 155, 222, 0.1);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(8, 14, 24, 0.78) 0%, rgba(7, 14, 24, 0.62) 100%);
+  box-shadow: 0 18px 44px rgba(2, 8, 15, 0.18);
+}
+
+.haidian-cockpit__panel-shell--left,
+.haidian-cockpit__panel-shell--rail,
+.haidian-cockpit__panel-shell--bottom {
+  padding: 8px;
+}
+
+.haidian-cockpit__panel-shell--map {
+  padding: 6px;
+}
+
+.haidian-cockpit__panel-drag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 30;
+  min-height: 24px;
+  border: 1px solid rgba(120, 171, 241, 0.14);
+  border-radius: 999px;
+  padding: 0 8px;
+  background: rgba(7, 16, 26, 0.58);
+  color: rgba(219, 230, 245, 0.74);
+  font-size: 10px;
+  cursor: move;
+  opacity: 0.4;
+  transition: opacity 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.haidian-cockpit__panel-shell:hover .haidian-cockpit__panel-drag,
+.haidian-cockpit__panel-drag:focus-visible {
+  opacity: 1;
+  border-color: rgba(120, 171, 241, 0.32);
+  background: rgba(14, 26, 43, 0.88);
+  color: #f3f8ff;
+}
+
+.haidian-cockpit__panel-shell--map .haidian-cockpit__panel-drag {
+  top: 64px;
+}
+
+.haidian-cockpit__left-panel,
+.haidian-cockpit__signal-panel,
+.haidian-cockpit__bottom-band {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
 }
 
 .haidian-cockpit__map-column {
   position: relative;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
@@ -594,10 +910,10 @@ onBeforeUnmount(() => {
 .haidian-cockpit__map-column::before {
   content: '';
   position: absolute;
-  inset: 12px;
+  inset: 10px;
   z-index: 410;
   border: 1px solid rgba(101, 168, 246, 0.04);
-  border-radius: 28px;
+  border-radius: 24px;
   background:
     linear-gradient(rgba(84, 129, 191, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(84, 129, 191, 0.04) 1px, transparent 1px);
@@ -610,7 +926,7 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 28px;
+  border-radius: 24px;
   background:
     radial-gradient(circle at 10% 16%, rgba(72, 158, 255, 0.12), transparent 30%),
     radial-gradient(circle at 84% 18%, rgba(58, 210, 198, 0.08), transparent 26%);
@@ -619,10 +935,11 @@ onBeforeUnmount(() => {
 
 .haidian-cockpit__overlay {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
+  top: 8px;
+  left: 8px;
+  right: 8px;
   z-index: 430;
+  padding-right: 76px;
 }
 
 .haidian-cockpit__map-stage {
@@ -633,44 +950,41 @@ onBeforeUnmount(() => {
 .haidian-cockpit__cursor-glow {
   position: absolute;
   z-index: 434;
-  width: 28px;
-  height: 28px;
-  margin-left: -14px;
-  margin-top: -14px;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  margin-top: -12px;
   border-radius: 999px;
   pointer-events: none;
   background: radial-gradient(circle, rgba(135, 198, 255, 0.78) 0%, rgba(80, 168, 255, 0.18) 42%, transparent 72%);
   box-shadow: 0 0 28px rgba(96, 180, 255, 0.28);
 }
 
-@media (max-width: 1880px) {
-  .haidian-cockpit__stage {
-    grid-template-columns: clamp(192px, 16vw, 236px) minmax(0, 1fr) clamp(308px, 22vw, 374px);
-  }
+.haidian-cockpit :deep(.grid-stack-placeholder > .placeholder-content) {
+  border: 1px dashed rgba(127, 182, 255, 0.32);
+  border-radius: 24px;
+  background: rgba(12, 22, 35, 0.26);
 }
 
-@media (max-width: 1440px) {
-  .haidian-cockpit__stage {
-    grid-template-columns: clamp(184px, 16vw, 224px) minmax(0, 1fr) clamp(294px, 23vw, 350px);
-    --cockpit-stage-height: clamp(292px, 38vh, 388px);
-  }
+.haidian-cockpit :deep(.ui-resizable-handle) {
+  filter: brightness(1.18);
 }
 
 @media (max-width: 1180px) {
-  .haidian-cockpit__stage {
-    grid-template-columns: 1fr;
-    grid-template-rows: none;
+  .haidian-cockpit {
     height: auto;
+    min-height: calc(100vh - 110px);
+    overflow: visible;
   }
 
-  .haidian-cockpit__map-column {
-    min-height: 460px;
+  .haidian-cockpit__workspace,
+  .haidian-cockpit__grid {
+    height: auto;
+    min-height: 0;
   }
-}
 
-@media (max-width: 900px) {
-  .haidian-cockpit__map-column {
-    min-height: 560px;
+  .haidian-cockpit__panel-shell--map .haidian-cockpit__panel-drag {
+    top: 12px;
   }
 }
 </style>
