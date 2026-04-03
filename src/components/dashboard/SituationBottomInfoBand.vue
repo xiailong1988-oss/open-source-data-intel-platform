@@ -117,15 +117,18 @@ const initGrid = async () => {
   grid = GridStack.init(
     {
       column: 6,
-      cellHeight: 138,
-      margin: 12,
+      cellHeight: 112,
+      margin: 10,
       float: false,
       minRow: 1,
       disableDrag: false,
       disableResize: false,
       animate: true,
-      alwaysShowResizeHandle: true,
-      handle: '.situation-bottom-band__drag',
+      alwaysShowResizeHandle: false,
+      handle: '.situation-bottom-band__card',
+      draggable: {
+        cancel: 'button',
+      },
       resizable: { handles: 'e,se,s,sw,w' },
     },
     gridRoot.value,
@@ -213,7 +216,6 @@ onBeforeUnmount(() => {
   >
     <header class="situation-bottom-band__shell-header">
       <div>
-        <span class="situation-bottom-band__eyebrow">Board Matrix</span>
         <strong>六大板块摘要矩阵</strong>
       </div>
       <button type="button" class="situation-bottom-band__reset" @click="restoreDefault">恢复默认布局</button>
@@ -245,13 +247,12 @@ onBeforeUnmount(() => {
           >
             <header class="situation-bottom-band__card-head">
               <div>
-                <span class="situation-bottom-band__eyebrow">{{ item.board.eyebrow }}</span>
                 <strong>{{ item.board.title }}</strong>
               </div>
-              <button type="button" class="situation-bottom-band__drag" title="拖拽或缩放模块">⋮⋮</button>
+              <button type="button" class="situation-bottom-band__open" @click="emit('open-board', item.board)">查看</button>
             </header>
 
-            <button type="button" class="situation-bottom-band__card-main" @click="emit('open-board', item.board)">
+            <div class="situation-bottom-band__card-main">
               <div class="situation-bottom-band__value-line">
                 <strong>
                   {{ Math.round(animatedValues[item.board.id] ?? item.board.currentValue) }}
@@ -262,7 +263,7 @@ onBeforeUnmount(() => {
 
               <div class="situation-bottom-band__status-line">
                 <em :class="`is-${item.board.riskLevel}`">{{ item.board.status }}</em>
-                <small>{{ item.board.trend === 'up' ? 'trend up' : item.board.trend === 'down' ? 'trend down' : 'trend flat' }}</small>
+                <small>{{ item.board.trend === 'up' ? '上升' : item.board.trend === 'down' ? '下降' : '平稳' }}</small>
               </div>
 
               <div class="situation-bottom-band__highlights">
@@ -271,7 +272,7 @@ onBeforeUnmount(() => {
                   <small>{{ highlight.label }}</small>
                 </span>
               </div>
-            </button>
+            </div>
           </section>
         </div>
       </article>
@@ -283,20 +284,22 @@ onBeforeUnmount(() => {
 .situation-bottom-band {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .situation-bottom-band__shell-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .situation-bottom-band__eyebrow {
   color: #83c2ff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -308,24 +311,28 @@ onBeforeUnmount(() => {
 }
 
 .situation-bottom-band__reset,
-.situation-bottom-band__drag {
+.situation-bottom-band__open {
   border: 1px solid rgba(118, 168, 240, 0.12);
   background: rgba(8, 16, 28, 0.42);
   color: rgba(202, 220, 244, 0.74);
   cursor: pointer;
 }
 
-.situation-bottom-band__reset {
-  min-height: 28px;
-  padding: 0 10px;
+.situation-bottom-band__reset,
+.situation-bottom-band__open {
+  min-height: 24px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .situation-bottom-band__grid {
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .situation-bottom-band__item > .grid-stack-item-content {
@@ -340,9 +347,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(118, 168, 240, 0.1);
-  border-radius: 18px;
+  border-radius: 16px;
   background: linear-gradient(180deg, rgba(8, 15, 25, 0.8) 0%, rgba(9, 16, 26, 0.68) 100%);
-  padding: 12px;
+  padding: 10px;
+  cursor: grab;
 }
 
 .situation-bottom-band__card::before {
@@ -368,16 +376,9 @@ onBeforeUnmount(() => {
 .situation-bottom-band__card-head {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-start;
-  margin-bottom: 10px;
-}
-
-.situation-bottom-band__drag {
-  width: 28px;
-  min-height: 28px;
-  border-radius: 12px;
-  font-size: 14px;
+  margin-bottom: 8px;
 }
 
 .situation-bottom-band__card-main {
@@ -385,12 +386,7 @@ onBeforeUnmount(() => {
   width: 100%;
   min-width: 0;
   flex-direction: column;
-  gap: 10px;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  text-align: left;
-  cursor: pointer;
+  gap: 8px;
 }
 
 .situation-bottom-band__value-line,
@@ -398,16 +394,16 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .situation-bottom-band__value-line strong {
-  font-size: 28px;
+  font-size: 22px;
   line-height: 1;
 }
 
 .situation-bottom-band__value-line strong small {
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .situation-bottom-band__value-line span,
@@ -419,11 +415,11 @@ onBeforeUnmount(() => {
 .situation-bottom-band__status-line em {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
+  min-height: 20px;
   border-radius: 999px;
-  padding: 0 8px;
+  padding: 0 7px;
   font-style: normal;
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -446,22 +442,22 @@ onBeforeUnmount(() => {
 .situation-bottom-band__highlights {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .situation-bottom-band__highlights span {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   border: 1px solid rgba(118, 168, 240, 0.08);
   border-radius: 12px;
   background: rgba(5, 12, 20, 0.42);
-  padding: 8px;
+  padding: 6px 7px;
 }
 
 .situation-bottom-band__highlights strong {
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .situation-bottom-band__card:hover {
@@ -475,6 +471,17 @@ onBeforeUnmount(() => {
 }
 
 .situation-bottom-band :deep(.ui-resizable-handle) {
-  filter: brightness(1.25);
+  opacity: 0;
+  background: transparent;
+  transition: opacity 0.18s ease;
+}
+
+.situation-bottom-band :deep(.grid-stack-item:hover .ui-resizable-handle),
+.situation-bottom-band :deep(.grid-stack-item.ui-resizable-resizing .ui-resizable-handle) {
+  opacity: 0.12;
+}
+
+.situation-bottom-band :deep(.grid-stack-item.ui-draggable-dragging .situation-bottom-band__card) {
+  cursor: grabbing;
 }
 </style>

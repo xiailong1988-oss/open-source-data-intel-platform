@@ -35,15 +35,35 @@ const initialCockpitLayer = computed<DashboardCockpitLayer>(() => {
 
 <style scoped>
 .dashboard {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(4, 10, 18, 0.18) 0%, rgba(4, 10, 18, 0.52) 100%),
+    url('/backgrounds/haidian-cockpit-tech-bg.svg') center/cover no-repeat;
+  box-shadow: inset 0 1px 0 rgba(138, 190, 255, 0.08);
+}
+
+.dashboard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(103, 178, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 84% 22%, rgba(52, 240, 208, 0.1), transparent 24%),
+    linear-gradient(180deg, rgba(5, 11, 19, 0.08) 0%, rgba(5, 11, 19, 0.32) 100%);
+  pointer-events: none;
 }
 
 .dashboard :deep(.haidian-cockpit) {
+  position: relative;
+  z-index: 1;
   flex: 1 1 auto;
-  height: calc(100vh - var(--platform-header-height) - 32px);
-  min-height: calc(100vh - var(--platform-header-height) - 32px);
+  height: calc(100vh - var(--platform-header-height) - 22px);
+  min-height: calc(100vh - var(--platform-header-height) - 22px);
 }
 </style>

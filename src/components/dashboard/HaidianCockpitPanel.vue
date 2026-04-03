@@ -10,7 +10,6 @@ import SituationLeftPulsePanel from './SituationLeftPulsePanel.vue'
 import SituationMapHighlightLayer from './SituationMapHighlightLayer.vue'
 import SituationMapOverlayBar from './SituationMapOverlayBar.vue'
 import SituationSignalRail from './SituationSignalRail.vue'
-import SituationTopBar from './SituationTopBar.vue'
 import { getCockpitMapProviderFactoryState } from '../../lib/map/mapProviderFactory'
 import { useAppStore } from '../../stores/app'
 import type {
@@ -60,18 +59,10 @@ const appStore = useAppStore()
 const { isSidebarHidden } = storeToRefs(appStore)
 const workspaceRef = ref<HTMLElement | null>(null)
 const gridRootRef = ref<HTMLElement | null>(null)
-const mapStageRef = ref<InstanceType<typeof HaidianCockpitMapStage> | null>(null)
 const panelLayouts = ref<CockpitPanelLayout[]>([])
 
 let grid: GridStack | null = null
 let workspaceResizeObserver: ResizeObserver | null = null
-
-const panelTitleMap: Record<CockpitPanelId, string> = {
-  left: '左侧统计区',
-  map: '地图区',
-  rail: '情报流区',
-  bottom: '底部摘要区',
-}
 
 const panelConstraintMap: Record<
   CockpitPanelId,
@@ -185,8 +176,12 @@ const initGrid = async () => {
       animate: true,
       disableDrag: false,
       disableResize: false,
-      alwaysShowResizeHandle: true,
-      handle: '.haidian-cockpit__panel-drag',
+      alwaysShowResizeHandle: false,
+      handle: '.haidian-cockpit__panel-shell',
+      draggable: {
+        cancel:
+          'button,.leaflet-container,.leaflet-control-container,.leaflet-marker-icon,.leaflet-interactive,.leaflet-popup,.leaflet-tooltip,.map-highlight-layer__card',
+      },
       resizable: { handles: 'all' },
       cellHeight: 72,
     },
@@ -211,7 +206,6 @@ const selectedPointId = ref('')
 const selectedZoneId = ref('')
 const hoveredPointId = ref('')
 const activeTickerIndex = ref(0)
-const basemapNotice = ref('')
 const isPlaybackPaused = ref(false)
 const isStreamHovered = ref(false)
 const showAllHighlights = ref(false)
@@ -322,14 +316,6 @@ const guideInstruction = computed(() =>
   showAllHighlights.value ? '联线层已展开，可从地图顶端或底端直接进入重点信息详情。' : currentProfile.value.instruction,
 )
 
-const restoreDefaultLayout = async () => {
-  const nextLayouts = defaultPanelLayouts()
-  panelLayouts.value = nextLayouts
-  persistLayouts(nextLayouts)
-  await initGrid()
-  ElMessage.success('首页版面已恢复默认布局')
-}
-
 const openRouteLink = (link: DashboardCockpitLink) => {
   if (link.path) {
     router.push({ path: link.path, query: link.query })
@@ -432,13 +418,6 @@ const openHighlight = (highlight: DashboardMapHighlight) => {
   openRouteLink(highlight.detailTarget)
 }
 
-const focusDistrictView = () => {
-  selectedPointId.value = ''
-  selectedZoneId.value = ''
-  filters.value.area = '全部'
-  mapStageRef.value?.focusDistrict()
-}
-
 const handleMapLayoutChange = (layout: DashboardMapLayoutSnapshot) => {
   mapLayout.value = layout
 }
@@ -458,33 +437,6 @@ const handleMapPointerMove = (event: MouseEvent) => {
 const handleMapPointerLeave = () => {
   mapCursor.value = { visible: false, x: 0, y: 0 }
   hoveredPointId.value = ''
-}
-
-const resetView = async () => {
-  activeLayer.value = props.initialLayer
-  activeBasemap.value = props.overview.defaultBasemap ?? providerFactoryState.defaultBasemap
-  filters.value.timeRange = '今日'
-  filters.value.area = '全部'
-  filters.value.riskLevel = '全部'
-  filters.value.displayMode = '驾驶舱降噪'
-  selectedPointId.value = ''
-  selectedZoneId.value = ''
-  hoveredPointId.value = ''
-  activeTickerIndex.value = 0
-  basemapNotice.value = ''
-  showAllHighlights.value = false
-  isPlaybackPaused.value = false
-  await nextTick()
-  await focusTopPriorityPoint()
-  mapStageRef.value?.focusDistrict()
-  ElMessage.success('已重置海淀驾驶舱视图')
-}
-
-const toggleSidebarVisibility = () => {
-  const nextHidden = !isSidebarHidden.value
-  appStore.toggleSidebarVisibility()
-  window.setTimeout(() => updateGridCellHeight(), 260)
-  ElMessage.success(nextHidden ? '已切换为专注视图' : '已展开侧栏')
 }
 
 const setLayer = async (layer: DashboardCockpitLayer) => {
@@ -513,7 +465,6 @@ const handleSignalClick = async (signalId: string) => {
 
 const handleBasemapError = () => {
   activeBasemap.value = '驾驶舱暗色'
-  basemapNotice.value = '在线底图加载失败，已自动回退到驾驶舱暗色底图'
   ElMessage.warning('在线底图加载失败，已自动回退')
 }
 
@@ -626,13 +577,6 @@ watch(
 )
 
 watch(
-  () => activeLayer.value,
-  () => {
-    basemapNotice.value = ''
-  },
-)
-
-watch(
   () => isSidebarHidden.value,
   () => {
     window.setTimeout(() => updateGridCellHeight(), 260)
@@ -673,19 +617,6 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="haidian-cockpit">
-    <SituationTopBar
-      :district="props.overview.district"
-      :active-layer="activeLayer"
-      :active-basemap="activeBasemap"
-      :latest-update="latestUpdate"
-      :basemap-notice="basemapNotice"
-      :is-sidebar-hidden="isSidebarHidden"
-      @reset-layout="restoreDefaultLayout"
-      @focus-district="focusDistrictView"
-      @toggle-sidebar="toggleSidebarVisibility"
-      @reset-view="resetView"
-    />
-
     <div ref="workspaceRef" class="haidian-cockpit__workspace">
       <div ref="gridRootRef" class="haidian-cockpit__grid grid-stack">
         <section
@@ -705,10 +636,6 @@ onBeforeUnmount(() => {
         >
           <div class="grid-stack-item-content">
             <article class="haidian-cockpit__panel-shell" :class="`haidian-cockpit__panel-shell--${panel.id}`">
-              <button type="button" class="haidian-cockpit__panel-drag" :title="`拖拽或缩放${panelTitleMap[panel.id]}`">
-                调整
-              </button>
-
               <SituationLeftPulsePanel
                 v-if="panel.id === 'left'"
                 class="haidian-cockpit__left-panel"
@@ -735,7 +662,6 @@ onBeforeUnmount(() => {
                 </div>
 
                 <HaidianCockpitMapStage
-                  ref="mapStageRef"
                   class="haidian-cockpit__map-stage"
                   :district="props.overview.district"
                   :map-bounds="props.overview.mapBounds"
@@ -815,12 +741,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .haidian-cockpit {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   height: 100%;
-  gap: 10px;
   overflow: hidden;
 }
 
@@ -847,6 +772,7 @@ onBeforeUnmount(() => {
   background:
     linear-gradient(180deg, rgba(8, 14, 24, 0.78) 0%, rgba(7, 14, 24, 0.62) 100%);
   box-shadow: 0 18px 44px rgba(2, 8, 15, 0.18);
+  cursor: grab;
 }
 
 .haidian-cockpit__panel-shell--left,
@@ -857,35 +783,6 @@ onBeforeUnmount(() => {
 
 .haidian-cockpit__panel-shell--map {
   padding: 6px;
-}
-
-.haidian-cockpit__panel-drag {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 30;
-  min-height: 24px;
-  border: 1px solid rgba(120, 171, 241, 0.14);
-  border-radius: 999px;
-  padding: 0 8px;
-  background: rgba(7, 16, 26, 0.58);
-  color: rgba(219, 230, 245, 0.74);
-  font-size: 10px;
-  cursor: move;
-  opacity: 0.4;
-  transition: opacity 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
-}
-
-.haidian-cockpit__panel-shell:hover .haidian-cockpit__panel-drag,
-.haidian-cockpit__panel-drag:focus-visible {
-  opacity: 1;
-  border-color: rgba(120, 171, 241, 0.32);
-  background: rgba(14, 26, 43, 0.88);
-  color: #f3f8ff;
-}
-
-.haidian-cockpit__panel-shell--map .haidian-cockpit__panel-drag {
-  top: 64px;
 }
 
 .haidian-cockpit__left-panel,
@@ -967,7 +864,23 @@ onBeforeUnmount(() => {
 }
 
 .haidian-cockpit :deep(.ui-resizable-handle) {
-  filter: brightness(1.18);
+  opacity: 0;
+  background: transparent;
+  transition: opacity 0.18s ease;
+}
+
+.haidian-cockpit :deep(.grid-stack-item:hover .ui-resizable-handle),
+.haidian-cockpit :deep(.grid-stack-item.ui-resizable-resizing .ui-resizable-handle) {
+  opacity: 0.12;
+}
+
+.haidian-cockpit :deep(.grid-stack-item.ui-draggable-dragging .haidian-cockpit__panel-shell) {
+  cursor: grabbing;
+}
+
+.haidian-cockpit__panel-shell :deep(button),
+.haidian-cockpit__panel-shell :deep(a) {
+  cursor: pointer;
 }
 
 @media (max-width: 1180px) {
@@ -981,10 +894,6 @@ onBeforeUnmount(() => {
   .haidian-cockpit__grid {
     height: auto;
     min-height: 0;
-  }
-
-  .haidian-cockpit__panel-shell--map .haidian-cockpit__panel-drag {
-    top: 12px;
   }
 }
 </style>

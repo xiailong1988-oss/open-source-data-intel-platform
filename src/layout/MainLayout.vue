@@ -126,6 +126,7 @@ watch(
 
 .platform-layout__main--immersive {
   padding-inline: clamp(10px, 0.64vw, 18px);
+  padding-top: 10px;
   padding-bottom: 8px;
 }
 

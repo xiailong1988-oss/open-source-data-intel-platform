@@ -116,15 +116,18 @@ const initGrid = async () => {
   grid = GridStack.init(
     {
       column: 1,
-      cellHeight: 118,
-      margin: 10,
+      cellHeight: 96,
+      margin: 8,
       float: false,
       minRow: 4,
       disableDrag: false,
       disableResize: false,
       animate: true,
-      alwaysShowResizeHandle: true,
-      handle: '.situation-left-pulse__module-handle',
+      alwaysShowResizeHandle: false,
+      handle: '.situation-left-pulse__module',
+      draggable: {
+        cancel: 'button',
+      },
       resizable: { handles: 's,se' },
     },
     gridRoot.value,
@@ -208,7 +211,6 @@ onBeforeUnmount(() => {
   <aside class="situation-left-pulse" v-motion :initial="{ opacity: 0, x: -18 }" :enter="{ opacity: 1, x: 0, transition: { duration: 620 } }">
     <header class="situation-left-pulse__shell-header">
       <div>
-        <span class="situation-left-pulse__eyebrow">System Pulse</span>
         <strong>系统统计快照</strong>
       </div>
       <button type="button" class="situation-left-pulse__reset" @click="restoreDefault">恢复默认</button>
@@ -238,12 +240,10 @@ onBeforeUnmount(() => {
           >
             <header class="situation-left-pulse__module-head">
               <div>
-                <span class="situation-left-pulse__eyebrow">{{ item.module.eyebrow }}</span>
                 <strong>{{ item.module.title }}</strong>
               </div>
               <div class="situation-left-pulse__module-actions">
                 <button type="button" class="situation-left-pulse__open" @click="emit('open-module', item.module)">打开</button>
-                <button type="button" class="situation-left-pulse__module-handle" title="拖拽与缩放模块">⋮⋮</button>
               </div>
             </header>
 
@@ -279,19 +279,19 @@ onBeforeUnmount(() => {
   min-height: 0;
   height: 100%;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .situation-left-pulse__shell-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .situation-left-pulse__eyebrow {
   color: #83c2ff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -304,7 +304,6 @@ onBeforeUnmount(() => {
 }
 
 .situation-left-pulse__reset,
-.situation-left-pulse__module-handle,
 .situation-left-pulse__open {
   border: 1px solid rgba(118, 168, 240, 0.12);
   background: rgba(8, 16, 28, 0.42);
@@ -314,10 +313,10 @@ onBeforeUnmount(() => {
 
 .situation-left-pulse__reset,
 .situation-left-pulse__open {
-  min-height: 28px;
-  padding: 0 10px;
+  min-height: 24px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -326,7 +325,7 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding-right: 4px;
+  padding-right: 2px;
 }
 
 .situation-left-pulse__item > .grid-stack-item-content {
@@ -341,10 +340,11 @@ onBeforeUnmount(() => {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(116, 168, 240, 0.1);
-  border-radius: 18px;
+  border-radius: 16px;
   background: linear-gradient(180deg, rgba(8, 16, 28, 0.88) 0%, rgba(9, 15, 25, 0.72) 100%);
-  padding: 12px;
+  padding: 10px;
   backdrop-filter: blur(14px);
+  cursor: grab;
 }
 
 .situation-left-pulse__module::before {
@@ -375,28 +375,20 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .situation-left-pulse__module-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.situation-left-pulse__module-handle {
-  width: 30px;
-  min-height: 30px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1;
+  gap: 6px;
 }
 
 .situation-left-pulse__metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
 }
 
@@ -404,7 +396,7 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(116, 168, 240, 0.08);
   border-radius: 14px;
   background: rgba(5, 12, 20, 0.5);
-  padding: 10px;
+  padding: 8px;
   text-align: left;
   cursor: pointer;
   transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, background 0.24s ease;
@@ -420,10 +412,10 @@ onBeforeUnmount(() => {
 .situation-left-pulse__metric-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: rgba(191, 210, 233, 0.72);
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .situation-left-pulse__metric-label i {
@@ -448,13 +440,13 @@ onBeforeUnmount(() => {
 
 .situation-left-pulse__metric strong {
   display: block;
-  margin-top: 8px;
-  font-size: 24px;
+  margin-top: 6px;
+  font-size: 20px;
   line-height: 1;
 }
 
 .situation-left-pulse__metric strong small {
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .situation-left-pulse :deep(.grid-stack-item.ui-draggable-dragging .grid-stack-item-content),
@@ -463,7 +455,18 @@ onBeforeUnmount(() => {
 }
 
 .situation-left-pulse :deep(.ui-resizable-handle) {
-  filter: brightness(1.25);
+  opacity: 0;
+  background: transparent;
+  transition: opacity 0.18s ease;
+}
+
+.situation-left-pulse :deep(.grid-stack-item:hover .ui-resizable-handle),
+.situation-left-pulse :deep(.grid-stack-item.ui-resizable-resizing .ui-resizable-handle) {
+  opacity: 0.12;
+}
+
+.situation-left-pulse :deep(.grid-stack-item.ui-draggable-dragging .situation-left-pulse__module) {
+  cursor: grabbing;
 }
 
 @media (max-width: 1180px) {

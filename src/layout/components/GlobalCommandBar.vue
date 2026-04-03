@@ -53,7 +53,7 @@ const handleModeChange = (value: string | number | boolean) => {
         </el-button>
       </template>
     </el-input>
-    <el-popover placement="bottom-end" :width="280" trigger="click">
+    <el-popover placement="bottom-end" :width="280" trigger="click" :teleported="false">
       <template #reference>
         <el-button text class="global-command-bar__quick-trigger">推荐问题</el-button>
       </template>

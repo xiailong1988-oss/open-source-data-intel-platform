@@ -220,6 +220,7 @@ const createMarkerHtml = (point: DashboardCockpitPoint, highlighted: boolean) =>
   const classes = [
     'cockpit-map-marker',
     `cockpit-map-marker--${point.riskLevel}`,
+    point.layer === '风险预警' ? 'is-warning' : '',
     highlighted ? 'is-highlighted' : '',
     props.selectedPointId === point.id ? 'is-selected' : '',
   ]
@@ -649,6 +650,12 @@ defineExpose({
   opacity: 0;
 }
 
+.cockpit-map:deep(.cockpit-map-marker.is-warning .cockpit-map-marker__pulse) {
+  background: radial-gradient(circle, rgba(255, 108, 108, 0.58) 0%, rgba(255, 108, 108, 0.08) 62%, transparent 76%);
+  animation: cockpit-warning-pulse 1.7s ease-out infinite;
+  opacity: 1;
+}
+
 .cockpit-map:deep(.cockpit-map-marker.is-highlighted .cockpit-map-marker__pulse),
 .cockpit-map:deep(.cockpit-map-marker.is-selected .cockpit-map-marker__pulse) {
   animation: cockpit-marker-pulse 2.4s ease-out infinite;
@@ -665,6 +672,14 @@ defineExpose({
   border-radius: 999px;
   background: var(--marker-color);
   box-shadow: 0 0 0 3px rgba(8, 16, 28, 0.4), 0 14px 24px rgba(5, 12, 20, 0.35);
+}
+
+.cockpit-map:deep(.cockpit-map-marker.is-warning .cockpit-map-marker__dot) {
+  box-shadow:
+    0 0 0 3px rgba(8, 16, 28, 0.42),
+    0 0 18px rgba(255, 107, 107, 0.54),
+    0 0 34px rgba(255, 107, 107, 0.24);
+  animation: cockpit-warning-dot 1.4s ease-in-out infinite;
 }
 
 .cockpit-map:deep(.cockpit-map-marker:hover) {
@@ -688,6 +703,35 @@ defineExpose({
 
   100% {
     opacity: 0;
+  }
+}
+
+@keyframes cockpit-warning-pulse {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.8;
+  }
+
+  70% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes cockpit-warning-dot {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: saturate(1);
+  }
+
+  50% {
+    transform: scale(1.18);
+    filter: saturate(1.18);
   }
 }
 

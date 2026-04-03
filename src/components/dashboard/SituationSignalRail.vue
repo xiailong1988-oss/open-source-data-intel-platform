@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowDown, ArrowUp, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import type {
   DashboardCockpitLayer,
@@ -10,8 +10,8 @@ import type {
   DashboardCockpitZone,
 } from '../../types/dashboardCockpit'
 
-const STREAM_ROW_HEIGHT = 68
-const STREAM_VISIBLE_ROWS = 6
+const STREAM_ROW_HEIGHT = 76
+const STREAM_VISIBLE_ROWS = 5
 
 /**
  * 右侧 rail 这轮直接按单一 signal layer 处理。
@@ -48,55 +48,31 @@ const emit = defineEmits<{
 
 const streamVisualIndex = ref(0)
 const streamAnimate = ref(true)
+const streamViewportRef = ref<HTMLElement | null>(null)
+const streamRowHeight = ref(STREAM_ROW_HEIGHT)
 let streamResetTimer: number | null = null
+let streamResizeObserver: ResizeObserver | null = null
 
 const streamRenderItems = computed(() => {
   if (!props.tickerItems.length) return []
   return props.tickerItems.concat(props.tickerItems.slice(0, STREAM_VISIBLE_ROWS))
 })
 
-const focusTitle = computed(() => {
-  if (props.displayPoint) return props.displayPoint.title
-  if (props.displayZone) return props.displayZone.name
-  return '海淀区当前焦点'
-})
+const updateStreamRowHeight = async () => {
+  await nextTick()
 
-const focusCaption = computed(() => {
-  if (props.displayPoint) return `${props.displayPoint.layer} / ${props.displayPoint.area}`
-  if (props.displayZone) return `重点片区 / ${props.displayZone.name}`
-  return `${props.activeLayer} / 海淀区`
-})
-
-const railActions = computed(() => {
-  if (props.focusLinks.length) {
-    return props.focusLinks.slice(0, 2).map((item) => ({
-      id: item.id,
-      label: item.title,
-      kind: 'link' as const,
-      link: item,
-    }))
+  if (!streamViewportRef.value) {
+    streamRowHeight.value = STREAM_ROW_HEIGHT
+    return
   }
 
-  if (props.zonePoints.length) {
-    return props.zonePoints.slice(0, 2).map((item) => ({
-      id: item.id,
-      label: item.title,
-      kind: 'point' as const,
-      pointId: item.id,
-    }))
-  }
-
-  return props.currentTopics.slice(0, 2).map((item) => ({
-    id: item.id,
-    label: item.title,
-    kind: 'topic' as const,
-    keyword: item.keyword,
-  }))
-})
+  const viewportHeight = streamViewportRef.value.clientHeight
+  streamRowHeight.value = Math.max(STREAM_ROW_HEIGHT, Math.floor(viewportHeight / STREAM_VISIBLE_ROWS))
+}
 
 const streamTrackStyle = computed(() => ({
-  transform: `translateY(-${streamVisualIndex.value * STREAM_ROW_HEIGHT}px)`,
-  transition: streamAnimate.value ? 'transform 560ms linear' : 'none',
+  transform: `translateY(-${streamVisualIndex.value * streamRowHeight.value}px)`,
+  transition: streamAnimate.value ? 'transform 620ms cubic-bezier(0.32, 0.72, 0, 1)' : 'none',
 }))
 
 const syncStreamVisualIndex = async (nextIndex: number, prevIndex: number) => {
@@ -151,10 +127,24 @@ watch(
   },
 )
 
+onMounted(async () => {
+  await updateStreamRowHeight()
+
+  if (streamViewportRef.value) {
+    streamResizeObserver = new ResizeObserver(() => {
+      void updateStreamRowHeight()
+    })
+    streamResizeObserver.observe(streamViewportRef.value)
+  }
+})
+
 onBeforeUnmount(() => {
   if (streamResetTimer !== null) {
     window.clearTimeout(streamResetTimer)
   }
+
+  streamResizeObserver?.disconnect()
+  streamResizeObserver = null
 })
 </script>
 
@@ -193,7 +183,7 @@ onBeforeUnmount(() => {
       </div>
 
     <div v-if="tickerItems.length" class="situation-signal-rail__stream">
-      <div class="situation-signal-rail__viewport">
+      <div ref="streamViewportRef" class="situation-signal-rail__viewport">
         <div class="situation-signal-rail__track" :style="streamTrackStyle">
           <button
             v-for="(item, index) in streamRenderItems"
@@ -201,6 +191,7 @@ onBeforeUnmount(() => {
             type="button"
             class="situation-signal-rail__item"
             :class="{ 'is-active': index % tickerItems.length === activeTickerIndex }"
+            :style="{ height: `${streamRowHeight}px` }"
             @click="emit('select-ticker', index % tickerItems.length)"
           >
             <div class="situation-signal-rail__item-meta">
@@ -220,42 +211,6 @@ onBeforeUnmount(() => {
       <strong>当前暂无可滚动情报</strong>
       <small>请切换图层或等待新数据进入海淀区情报流。</small>
     </div>
-
-    <footer class="situation-signal-rail__focus">
-      <div class="situation-signal-rail__focus-head">
-        <span class="situation-signal-rail__focus-caption">{{ focusCaption }}</span>
-      </div>
-
-      <strong class="situation-signal-rail__focus-title">{{ focusTitle }}</strong>
-      <div class="situation-signal-rail__focus-meta">
-        <span v-for="item in focusMeta" :key="item">{{ item }}</span>
-      </div>
-      <p class="situation-signal-rail__focus-summary">{{ focusSummary }}</p>
-      <small class="situation-signal-rail__guide">{{ guideInstruction }}</small>
-
-      <div class="situation-signal-rail__actions">
-        <button type="button" @click="emit('open-detail')">查看详情</button>
-        <button type="button" @click="emit('open-search')">检索溯源</button>
-      </div>
-
-      <div v-if="railActions.length" class="situation-signal-rail__quick-list">
-        <button
-          v-for="item in railActions"
-          :key="item.id"
-          type="button"
-          class="situation-signal-rail__quick-item"
-          @click="
-            item.kind === 'link'
-              ? emit('open-link', item.link)
-              : item.kind === 'point'
-                ? emit('focus-point', item.pointId)
-                : emit('topic-click', item.keyword)
-          "
-        >
-          {{ item.label }}
-        </button>
-      </div>
-    </footer>
   </aside>
 </template>
 
@@ -264,11 +219,11 @@ onBeforeUnmount(() => {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  padding: 2px 0 4px 10px;
+  padding: 4px 0 4px 10px;
   border-left: 1px solid rgba(116, 170, 240, 0.08);
   background:
     linear-gradient(180deg, rgba(7, 15, 24, 0.12) 0%, rgba(7, 15, 24, 0.38) 100%);
@@ -298,7 +253,6 @@ onBeforeUnmount(() => {
 
 .situation-signal-rail__title-group strong,
 .situation-signal-rail__item strong,
-.situation-signal-rail__focus-title,
 .situation-signal-rail__empty strong {
   color: #f1f7ff;
 }
@@ -310,8 +264,6 @@ onBeforeUnmount(() => {
 
 .situation-signal-rail__title-group small,
 .situation-signal-rail__item small,
-.situation-signal-rail__focus-summary,
-.situation-signal-rail__guide,
 .situation-signal-rail__empty small {
   color: rgba(210, 224, 242, 0.68);
   line-height: 1.5;
@@ -323,9 +275,7 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
-.situation-signal-rail__controls button,
-.situation-signal-rail__actions button,
-.situation-signal-rail__quick-item {
+.situation-signal-rail__controls button {
   border: 1px solid rgba(118, 168, 238, 0.12);
   background: rgba(7, 15, 24, 0.36);
   color: #e8f1fb;
@@ -341,9 +291,7 @@ onBeforeUnmount(() => {
   height: 28px;
 }
 
-.situation-signal-rail__controls button:hover,
-.situation-signal-rail__actions button:hover,
-.situation-signal-rail__quick-item:hover {
+.situation-signal-rail__controls button:hover {
   border-color: rgba(118, 168, 238, 0.28);
   background: rgba(18, 33, 52, 0.74);
   color: #f4f8ff;
@@ -360,9 +308,7 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
-.situation-signal-rail__meta span,
-.situation-signal-rail__focus-meta span,
-.situation-signal-rail__focus-caption {
+.situation-signal-rail__meta span {
   display: inline-flex;
   align-items: center;
   min-height: 22px;
@@ -380,14 +326,36 @@ onBeforeUnmount(() => {
 }
 
 .situation-signal-rail__viewport {
+  position: relative;
   height: 100%;
-  min-height: 300px;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(118, 168, 238, 0.08);
   border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(7, 15, 25, 0.52) 0%, rgba(7, 15, 25, 0.18) 100%);
   box-shadow: inset 0 1px 0 rgba(157, 199, 255, 0.03);
+}
+
+.situation-signal-rail__viewport::before,
+.situation-signal-rail__viewport::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 26px;
+  pointer-events: none;
+}
+
+.situation-signal-rail__viewport::before {
+  top: 0;
+  background: linear-gradient(180deg, rgba(7, 15, 25, 0.94) 0%, rgba(7, 15, 25, 0) 100%);
+}
+
+.situation-signal-rail__viewport::after {
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(7, 15, 25, 0) 0%, rgba(7, 15, 25, 0.94) 100%);
 }
 
 .situation-signal-rail__track {
@@ -397,7 +365,6 @@ onBeforeUnmount(() => {
 
 .situation-signal-rail__item {
   display: flex;
-  min-height: 68px;
   flex-direction: column;
   justify-content: center;
   gap: 5px;
@@ -417,6 +384,13 @@ onBeforeUnmount(() => {
 .situation-signal-rail__item strong {
   font-size: 13px;
   line-height: 1.4;
+}
+
+.situation-signal-rail__item small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .situation-signal-rail__item:hover,
@@ -441,65 +415,6 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.situation-signal-rail__focus {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border-top: 1px solid rgba(118, 168, 238, 0.08);
-  padding-top: 8px;
-  flex: 0 0 auto;
-  max-height: 200px;
-  overflow: auto;
-}
-
-.situation-signal-rail__focus-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.situation-signal-rail__focus-title {
-  font-size: 15px;
-  line-height: 1.45;
-}
-
-.situation-signal-rail__focus-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.situation-signal-rail__focus-summary,
-.situation-signal-rail__guide {
-  margin: 0;
-}
-
-.situation-signal-rail__focus-summary {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.situation-signal-rail__actions,
-.situation-signal-rail__quick-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.situation-signal-rail__actions button,
-.situation-signal-rail__quick-item {
-  min-height: 28px;
-  padding: 0 10px;
-  font-size: 11px;
-}
-
-.situation-signal-rail__quick-list {
-  margin-top: -1px;
-}
-
 .situation-signal-rail__empty {
   display: flex;
   flex-direction: column;
@@ -514,10 +429,6 @@ onBeforeUnmount(() => {
     border-left: 0;
     border-top: 1px solid rgba(116, 170, 240, 0.12);
     padding: 8px 0 0;
-  }
-
-  .situation-signal-rail__viewport {
-    min-height: 260px;
   }
 }
 </style>
