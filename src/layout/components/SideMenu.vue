@@ -76,21 +76,21 @@ const handleMenuSelect = async (path: string) => {
   align-items: center;
   gap: 10px;
   min-height: var(--platform-header-height);
-  padding: 0 18px;
+  padding: 0 16px;
   border-bottom: 1px solid rgba(220, 235, 255, 0.08);
 }
 
 .side-menu__logo-badge {
   display: flex;
-  height: 34px;
-  width: 34px;
+  height: 30px;
+  width: 30px;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
+  border-radius: 10px;
   background: linear-gradient(135deg, rgba(101, 170, 255, 0.94) 0%, rgba(42, 107, 189, 0.94) 100%);
   box-shadow: 0 10px 22px rgba(28, 92, 176, 0.24);
   color: #f4f8ff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -99,19 +99,19 @@ const handleMenuSelect = async (path: string) => {
   color: var(--platform-header-text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 .side-menu__nav {
   border-right: none;
-  padding: 18px 10px 22px;
+  padding: 14px 8px 18px;
 }
 
 .side-menu__nav :deep(.el-menu-item) {
-  min-height: 46px;
-  margin-bottom: 8px;
-  border-radius: 14px;
+  min-height: 42px;
+  margin-bottom: 6px;
+  border-radius: 12px;
   color: var(--platform-header-text-secondary);
   transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease;
 }
@@ -128,7 +128,7 @@ const handleMenuSelect = async (path: string) => {
 }
 
 .side-menu__nav :deep(.el-menu-item .el-icon) {
-  margin-right: 10px;
+  margin-right: 8px;
   color: inherit;
 }
 </style>

@@ -271,7 +271,6 @@ watch(filteredRecords, (list) => {
           <template #header>
             <div class="warning-records__card-header">
               <div class="platform-page-heading">
-                <span class="platform-page-heading__eyebrow">Records</span>
                 <h3>记录列表</h3>
                 <p>支持按标题、等级、状态和日期缩小范围，并继续钻取到规则、来源对象和内容详情。</p>
               </div>

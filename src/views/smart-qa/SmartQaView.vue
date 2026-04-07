@@ -170,7 +170,6 @@ onMounted(() => {
     <el-card shadow="never" class="qa-page-header-card">
       <div class="qa-page-header platform-page-hero__header">
         <div class="platform-page-heading">
-          <span class="platform-page-heading__eyebrow">Question &amp; Analysis</span>
           <h2>智能问答助手</h2>
           <p>基于知识库和检索结果生成业务答案，辅助研判与决策。</p>
         </div>
@@ -269,24 +268,19 @@ onMounted(() => {
 }
 
 .qa-page-header {
-  gap: 18px;
-}
-
-.qa-page-header h2 {
-  margin: 0;
-  color: var(--platform-text-primary);
-  font-size: 22px;
+  gap: 14px;
 }
 
 .qa-page-header p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--platform-text-secondary);
+  font-size: 12px;
 }
 
 .qa-page-header__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .qa-shell__layout {
@@ -311,14 +305,14 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   color: var(--platform-text-primary);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .history-card__header small {
   color: var(--platform-text-tertiary);
   font-weight: 400;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .history-scroll {
@@ -328,14 +322,14 @@ onMounted(() => {
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .history-item {
   border: 1px solid rgba(112, 145, 184, 0.16);
   border-radius: 14px;
   background: rgba(14, 25, 39, 0.82);
-  padding: 12px;
+  padding: 10px;
   text-align: left;
   cursor: pointer;
   transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
@@ -362,7 +356,7 @@ onMounted(() => {
   display: block;
   margin-top: 6px;
   color: var(--platform-text-tertiary);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .history-item.is-active {
@@ -374,22 +368,23 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 10px;
   color: var(--platform-text-secondary);
+  font-size: 12px;
 }
 
 .qa-input-card {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .qa-input-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 8px;
   color: var(--platform-text-tertiary);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 @media (max-width: 900px) {

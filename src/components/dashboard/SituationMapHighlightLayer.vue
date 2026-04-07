@@ -28,8 +28,8 @@ const riskClassMap: Record<DashboardCockpitRiskLevel, string> = {
 }
 
 const anchorOffset = {
-  top: 84,
-  bottom: 86,
+  top: 118,
+  bottom: 146,
 }
 
 const groups = computed(() => {
@@ -184,29 +184,29 @@ const resolveLinePath = (highlight: DashboardMapHighlight, index: number, total:
   position: absolute;
   left: 0;
   right: 0;
-  height: 70px;
+  height: 58px;
   pointer-events: none;
 }
 
 .map-highlight-layer__cards--top {
-  top: 74px;
+  top: 94px;
 }
 
 .map-highlight-layer__cards--bottom {
-  bottom: 18px;
+  bottom: 84px;
 }
 
 .map-highlight-layer__card {
   position: absolute;
-  width: min(220px, 22vw);
+  width: min(184px, 20vw);
   transform: translateX(-50%);
   border: 1px solid rgba(118, 171, 245, 0.12);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(6, 14, 24, 0.72);
-  padding: 8px 10px;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   text-align: left;
   color: #f1f7ff;
   cursor: pointer;
@@ -225,12 +225,12 @@ const resolveLinePath = (highlight: DashboardMapHighlight, index: number, total:
 .map-highlight-layer__card span,
 .map-highlight-layer__card small {
   color: rgba(207, 224, 245, 0.72);
-  font-size: 11px;
+  font-size: 9px;
 }
 
 .map-highlight-layer__card strong {
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .map-highlight-layer__card.is-high {
@@ -247,7 +247,7 @@ const resolveLinePath = (highlight: DashboardMapHighlight, index: number, total:
 
 @media (max-width: 1440px) {
   .map-highlight-layer__card {
-    width: min(188px, 21vw);
+    width: min(164px, 19vw);
   }
 }
 

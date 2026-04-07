@@ -282,24 +282,24 @@ const openSource = (sourceName: string) => {
 }
 
 .overview-brief {
-  gap: 16px;
+  gap: 12px;
 }
 
 .overview-brief h3 {
   margin: 0;
   color: var(--platform-text-primary);
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .overview-brief p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--platform-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .metric-card__label {
   color: var(--platform-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .metric-card--clickable {
@@ -316,7 +316,7 @@ const openSource = (sourceName: string) => {
   display: block;
   margin-top: 10px;
   color: var(--platform-text-primary);
-  font-size: 30px;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -324,12 +324,12 @@ const openSource = (sourceName: string) => {
   display: inline-block;
   margin-top: 10px;
   color: var(--platform-text-tertiary);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .table-card__header {
   color: var(--platform-text-primary);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 

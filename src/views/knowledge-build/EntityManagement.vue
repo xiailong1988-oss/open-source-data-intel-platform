@@ -86,7 +86,6 @@ watch(() => route.query, applyRouteQuery, { immediate: true })
     <template #header>
       <div class="page-card__header">
         <div class="platform-page-heading">
-          <span class="platform-page-heading__eyebrow">Entity Registry</span>
           <h3>实体管理</h3>
           <p>沉淀标准实体、别名、关联事件与内容，作为后续问答、预警和报告的对象底座。</p>
         </div>

@@ -15,7 +15,6 @@ defineProps<{
   <div class="platform-page-hero workbench-hero">
     <div class="platform-page-hero__header">
       <div class="platform-page-heading">
-        <span v-if="eyebrow" class="platform-page-heading__eyebrow">{{ eyebrow }}</span>
         <h1 v-if="level === 'h1'">{{ title }}</h1>
         <h2 v-else-if="level === 'h2'">{{ title }}</h2>
         <h3 v-else>{{ title }}</h3>

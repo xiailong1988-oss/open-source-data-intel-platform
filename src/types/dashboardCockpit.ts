@@ -1,11 +1,13 @@
 ﻿import type { DashboardQuickLink, DashboardRecentFocus } from './dashboard'
 
 export type DashboardCockpitLayer = '风险预警' | '突发事件' | '热点事件' | '重点关注'
+export type DashboardCockpitFeedFilter = DashboardCockpitLayer | '全部'
 export type DashboardCockpitRiskLevel = '高' | '中' | '低'
 export type DashboardCockpitPointKind = 'warning' | 'emergency' | 'hotspot' | 'watch'
 export type DashboardCockpitLinkKind = 'warning' | 'event' | 'report' | 'entity' | 'search'
 export type DashboardCockpitDisplayMode = '驾驶舱降噪' | '扩展标注'
 export type DashboardCockpitBasemap = '高德标准' | '高德深色' | 'OSM 标准' | '驾驶舱暗色'
+export type DashboardCockpitRegionType = 'district' | 'street' | 'town'
 export type DashboardSystemModuleId = 'collection' | 'storage' | 'resource' | 'agents'
 export type DashboardBusinessBoardId =
   | 'industrial-development'
@@ -34,6 +36,27 @@ export interface DashboardCockpitZone {
   keyword: string
   emphasis: string
   featuredPointIds: string[]
+}
+
+/**
+ * 首页区域态势统一配置。
+ * 地区切换不能直接写死在组件模板里，后续扩区时只需要补充配置与数据映射。
+ */
+export interface DashboardCockpitRegion {
+  id: string
+  name: string
+  shortName: string
+  type: DashboardCockpitRegionType
+  code: string
+  center: [number, number]
+  zoom: number
+  bounds: [[number, number], [number, number]]
+  order: number
+  enabled: boolean
+  description: string
+  emphasis: string
+  areaKeywords: string[]
+  zoneIds: string[]
 }
 
 export interface DashboardCockpitLink {
@@ -74,6 +97,21 @@ export interface DashboardCockpitTickerItem {
   status: string
   summary: string
   relatedPointId: string
+}
+
+export interface DashboardCockpitStreamEntry {
+  id: string
+  title: string
+  summary: string
+  time: string
+  regionId: string
+  regionName: string
+  eventType: DashboardCockpitLayer
+  source: string
+  tags: string[]
+  relatedPointId: string
+  priority: number
+  status: string
 }
 
 export interface DashboardCockpitTopicSwitch {
@@ -159,6 +197,7 @@ export interface DashboardCockpitOverview {
   mapCenter: [number, number]
   mapZoom: number
   mapBounds: [[number, number], [number, number]]
+  regions: DashboardCockpitRegion[]
   layers: DashboardCockpitLayer[]
   headlines: DashboardCockpitHeadline[]
   zones: DashboardCockpitZone[]

@@ -44,27 +44,27 @@ const handleItemClick = (item: WorkbenchMetricSummaryItem) => {
 
 .metric-card__label {
   color: var(--platform-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .metric-card__value {
   display: block;
   margin-top: 8px;
   color: var(--platform-text-primary);
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1.2;
   word-break: break-word;
 }
 
 .metric-card__value--compact {
-  font-size: 22px;
+  font-size: 19px;
 }
 
 .metric-card__change {
   display: inline-block;
   margin-top: 8px;
   color: var(--platform-text-secondary);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 11px;
+  line-height: 1.5;
 }
 </style>

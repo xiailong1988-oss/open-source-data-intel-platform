@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { GridStack, type GridStackWidget } from 'gridstack'
 import type { DashboardSystemModule } from '../../types/dashboardCockpit'
@@ -19,12 +19,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'open-module', module: DashboardSystemModule): void
+  (event: 'restore-layout'): void
 }>()
 
-const STORAGE_KEY = 'dashboard-left-system-grid-v3'
+const STORAGE_KEY = 'dashboard-left-system-grid-v4'
 const gridRoot = ref<HTMLElement | null>(null)
 const widgetLayouts = ref<SystemModuleLayout[]>([])
 const animatedMetricValues = reactive<Record<string, number>>({})
+
 let grid: GridStack | null = null
 let frameId = 0
 
@@ -43,7 +45,7 @@ const defaultLayouts = (): SystemModuleLayout[] =>
     w: 1,
     h: 1,
     minH: 1,
-    maxH: 2,
+    maxH: 3,
   }))
 
 const reconcileLayouts = (candidate: SystemModuleLayout[]) => {
@@ -52,7 +54,7 @@ const reconcileLayouts = (candidate: SystemModuleLayout[]) => {
 
   props.modules.forEach((module, index) => {
     if (!existingIds.has(module.id)) {
-      next.push({ id: module.id, x: 0, y: next.length || index, w: 1, h: 1, minH: 1, maxH: 2 })
+      next.push({ id: module.id, x: 0, y: next.length || index, w: 1, h: 1, minH: 1, maxH: 3 })
     }
   })
 
@@ -64,9 +66,9 @@ const reconcileLayouts = (candidate: SystemModuleLayout[]) => {
       x: 0,
       y: index,
       w: 1,
-      h: Math.min(2, Math.max(1, item.h ?? 1)),
+      h: Math.min(3, Math.max(1, item.h ?? 1)),
       minH: 1,
-      maxH: 2,
+      maxH: 3,
     }))
 }
 
@@ -93,15 +95,16 @@ const captureLayoutsFromDom = () => {
       x: 0,
       y: Number(item.getAttribute('gs-y') ?? 0),
       w: 1,
-      h: Math.min(2, Math.max(1, Number(item.getAttribute('gs-h') ?? 1))),
+      h: Math.min(3, Math.max(1, Number(item.getAttribute('gs-h') ?? 1))),
       minH: 1,
-      maxH: 2,
+      maxH: 3,
     }))
     .sort((left, right) => left.y - right.y)
 }
 
 const destroyGrid = () => {
   if (!grid) return
+
   grid.offAll()
   grid.destroy(false)
   grid = null
@@ -113,13 +116,15 @@ const initGrid = async () => {
   destroyGrid()
   await nextTick()
 
+  if (!gridRoot.value) return
+
   grid = GridStack.init(
     {
       column: 1,
-      cellHeight: 96,
+      cellHeight: 118,
       margin: 8,
       float: false,
-      minRow: 4,
+      minRow: props.modules.length,
       disableDrag: false,
       disableResize: false,
       animate: true,
@@ -201,6 +206,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   destroyGrid()
+
   if (frameId) {
     window.cancelAnimationFrame(frameId)
   }
@@ -208,12 +214,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <aside class="situation-left-pulse" v-motion :initial="{ opacity: 0, x: -18 }" :enter="{ opacity: 1, x: 0, transition: { duration: 620 } }">
+  <aside
+    class="situation-left-pulse"
+    v-motion
+    :initial="{ opacity: 0, x: -18 }"
+    :enter="{ opacity: 1, x: 0, transition: { duration: 620 } }"
+  >
     <header class="situation-left-pulse__shell-header">
       <div>
         <strong>系统统计快照</strong>
       </div>
-      <button type="button" class="situation-left-pulse__reset" @click="restoreDefault">恢复默认</button>
+      <button type="button" class="situation-left-pulse__reset" @click="restoreDefault">恢复布局</button>
     </header>
 
     <div ref="gridRoot" class="situation-left-pulse__grid grid-stack">
@@ -289,14 +300,6 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.situation-left-pulse__eyebrow {
-  color: #83c2ff;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
 .situation-left-pulse__shell-header strong,
 .situation-left-pulse__module strong,
 .situation-left-pulse__metric strong {
@@ -305,17 +308,13 @@ onBeforeUnmount(() => {
 
 .situation-left-pulse__reset,
 .situation-left-pulse__open {
+  min-height: 24px;
   border: 1px solid rgba(118, 168, 240, 0.12);
+  border-radius: 999px;
+  padding: 0 8px;
   background: rgba(8, 16, 28, 0.42);
   color: rgba(202, 220, 244, 0.74);
   cursor: pointer;
-}
-
-.situation-left-pulse__reset,
-.situation-left-pulse__open {
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
   font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -342,7 +341,7 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(116, 168, 240, 0.1);
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(8, 16, 28, 0.88) 0%, rgba(9, 15, 25, 0.72) 100%);
-  padding: 10px;
+  padding: 12px 10px 10px;
   backdrop-filter: blur(14px);
   cursor: grab;
 }
@@ -388,15 +387,19 @@ onBeforeUnmount(() => {
 .situation-left-pulse__metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
   min-height: 0;
 }
 
 .situation-left-pulse__metric {
+  display: flex;
+  min-height: 70px;
+  flex-direction: column;
+  justify-content: space-between;
   border: 1px solid rgba(116, 168, 240, 0.08);
   border-radius: 14px;
   background: rgba(5, 12, 20, 0.5);
-  padding: 8px;
+  padding: 10px 9px;
   text-align: left;
   cursor: pointer;
   transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, background 0.24s ease;
@@ -411,17 +414,19 @@ onBeforeUnmount(() => {
 
 .situation-left-pulse__metric-label {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   color: rgba(191, 210, 233, 0.72);
   font-size: 10px;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .situation-left-pulse__metric-label i {
   display: inline-flex;
   width: 8px;
   height: 8px;
+  flex: 0 0 auto;
+  margin-top: 3px;
   border-radius: 999px;
   background: rgba(120, 156, 191, 0.56);
 }
@@ -440,9 +445,9 @@ onBeforeUnmount(() => {
 
 .situation-left-pulse__metric strong {
   display: block;
-  margin-top: 6px;
-  font-size: 20px;
-  line-height: 1;
+  margin-top: 8px;
+  font-size: 18px;
+  line-height: 1.05;
 }
 
 .situation-left-pulse__metric strong small {

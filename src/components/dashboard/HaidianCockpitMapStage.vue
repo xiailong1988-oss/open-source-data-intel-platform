@@ -1,21 +1,23 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import L, { type CircleMarker, type GeoJSON, type Map as LeafletMap, type Marker, type TileLayer } from 'leaflet'
+import L, { type CircleMarker, type GeoJSON, type LayerGroup, type Map as LeafletMap, type Marker, type TileLayer } from 'leaflet'
 import type { Feature, FeatureCollection, MultiPolygon, Polygon, Position } from 'geojson'
 import 'leaflet/dist/leaflet.css'
 import { getCockpitBasemapProvider } from '../../lib/map/mapProviderFactory'
 import type {
   DashboardCockpitBasemap,
   DashboardCockpitLayer,
-  DashboardMapLayoutSnapshot,
   DashboardCockpitPoint,
+  DashboardCockpitRegion,
   DashboardCockpitRiskLevel,
   DashboardCockpitZone,
+  DashboardMapLayoutSnapshot,
 } from '../../types/dashboardCockpit'
 
 const props = defineProps<{
   district: string
   mapBounds: [[number, number], [number, number]]
+  currentRegion: DashboardCockpitRegion
   points: DashboardCockpitPoint[]
   zones: DashboardCockpitZone[]
   selectedPointId: string
@@ -38,19 +40,36 @@ const mapRoot = ref<HTMLDivElement | null>(null)
 let map: LeafletMap | null = null
 let baseTileLayer: TileLayer | null = null
 let boundaryLayer: GeoJSON | null = null
-let zoneLayerGroup: L.LayerGroup | null = null
-let pointLayerGroup: L.LayerGroup | null = null
+let boundaryMaskLayer: L.Polygon | null = null
+let regionLayerGroup: LayerGroup | null = null
+let zoneLayerGroup: LayerGroup | null = null
+let pointLayerGroup: LayerGroup | null = null
+let regionLabelMarker: Marker | null = null
 let resizeObserver: ResizeObserver | null = null
 let boundaryGeoJson: FeatureCollection<Polygon | MultiPolygon> | null = null
 let tileErrorReported = false
-let boundaryMaskLayer: L.Polygon | null = null
 let hasInitialFocusApplied = false
+let hasPendingViewportFocus = false
 
 const pointRegistry = new Map<string, Marker>()
 const zoneRegistry = new Map<string, CircleMarker>()
-const districtBounds = () => L.latLngBounds(props.mapBounds)
 
+const districtBounds = () => L.latLngBounds(props.mapBounds)
+const regionBounds = () => L.latLngBounds(props.currentRegion.bounds)
 const latLngOf = (coords: [number, number]) => L.latLng(coords[1], coords[0])
+const hasRenderableViewport = () =>
+  Boolean(map && mapRoot.value && mapRoot.value.clientWidth > 80 && mapRoot.value.clientHeight > 80)
+
+const ensureRenderableViewport = () => {
+  if (!map || !hasRenderableViewport()) {
+    hasPendingViewportFocus = true
+    return false
+  }
+
+  map.invalidateSize()
+  hasPendingViewportFocus = false
+  return true
+}
 
 const riskPalette: Record<DashboardCockpitRiskLevel, string> = {
   高: '#ff6b6b',
@@ -66,8 +85,8 @@ const layerPalette: Record<DashboardCockpitLayer, string> = {
 }
 
 /**
- * 首页地图只在首页使用 Leaflet，
- * 这样可以在不推翻全站 ECharts 体系的前提下引入在线底图与真实地图交互。
+ * 首页地图只接受程序化视角切换。
+ * 用户仍可点击点位和片区，但不能自由拖拽或缩放视图。
  */
 const ensureMap = () => {
   if (!mapRoot.value || map) {
@@ -78,21 +97,45 @@ const ensureMap = () => {
     zoomControl: false,
     attributionControl: true,
     preferCanvas: true,
-    minZoom: 9.75,
+    minZoom: 10,
     maxZoom: 18,
     zoomSnap: 0.25,
-    zoomAnimation: false,
-    fadeAnimation: false,
-    markerZoomAnimation: false,
+    dragging: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    touchZoom: false,
+    boxZoom: false,
+    keyboard: false,
+    zoomAnimation: true,
+    fadeAnimation: true,
+    markerZoomAnimation: true,
   })
-  map.setView(districtBounds().getCenter(), 11)
 
-  L.control.zoom({ position: 'bottomleft' }).addTo(map)
+  map.setView(districtBounds().getCenter(), 11)
+  regionLayerGroup = L.layerGroup().addTo(map)
   zoneLayerGroup = L.layerGroup().addTo(map)
   pointLayerGroup = L.layerGroup().addTo(map)
 
   resizeObserver = new ResizeObserver(() => {
-    map?.invalidateSize()
+    if (hasRenderableViewport()) {
+      map?.invalidateSize()
+    }
+    emitPointLayout()
+
+    if (!hasPendingViewportFocus || !hasRenderableViewport()) {
+      return
+    }
+
+    if (props.selectedPointId || props.selectedZoneId) {
+      void syncFocus()
+      return
+    }
+
+    if (!hasInitialFocusApplied) {
+      hasInitialFocusApplied = true
+    }
+
+    void focusRegion(false)
   })
   resizeObserver.observe(mapRoot.value)
 }
@@ -128,10 +171,6 @@ const updateSurfaceTone = () => {
   mapRoot.value.classList.toggle('cockpit-map--fallback-dark', provider.tone === 'fallback-dark')
 }
 
-/**
- * 在线底图如果加载失败，必须能优雅回退到本地驾驶舱暗色底图，
- * 避免因为网络抖动让首页地图完全失效。
- */
 const applyBasemap = () => {
   if (!map || !mapRoot.value) {
     return
@@ -207,13 +246,54 @@ const renderBoundary = () => {
 
   boundaryLayer = L.geoJSON(boundaryGeoJson, {
     style: () => ({
-      color: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? '#2c5f93' : '#7cb6ff',
-      weight: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? 2.2 : 2.6,
-      fillColor: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? '#3f7cb9' : '#173352',
-      fillOpacity: props.activeBasemap === '高德标准' || props.activeBasemap === 'OSM 标准' ? 0.1 : 0.18,
+      color: props.currentRegion.id === 'haidian-all' ? '#8bdcff' : '#4f8ee6',
+      weight: props.currentRegion.id === 'haidian-all' ? 3 : 2.6,
+      fillColor: props.currentRegion.id === 'haidian-all' ? '#143a63' : '#173352',
+      fillOpacity: props.currentRegion.id === 'haidian-all' ? 0.2 : 0.14,
       opacity: 0.95,
     }),
   }).addTo(map)
+}
+
+const drawRegionFocus = () => {
+  if (!regionLayerGroup) {
+    return
+  }
+
+  regionLayerGroup.clearLayers()
+
+  if (regionLabelMarker) {
+    regionLabelMarker.remove()
+    regionLabelMarker = null
+  }
+
+  if (props.currentRegion.id === 'haidian-all') {
+    return
+  }
+
+  const rectangle = L.rectangle(props.currentRegion.bounds, {
+    color: '#7ddaff',
+    weight: 1.8,
+    opacity: 0.96,
+    dashArray: '6 6',
+    fillColor: '#1c446b',
+    fillOpacity: 0.08,
+  })
+
+  rectangle.on('click', () => {
+    void focusRegion(true)
+  })
+  rectangle.addTo(regionLayerGroup)
+
+  regionLabelMarker = L.marker(latLngOf(props.currentRegion.center), {
+    icon: L.divIcon({
+      className: 'cockpit-map-region-label-wrapper',
+      html: `<div class="cockpit-map-region-label">${props.currentRegion.name}</div>`,
+      iconSize: [128, 34],
+      iconAnchor: [64, 17],
+    }),
+    interactive: false,
+  }).addTo(regionLayerGroup)
 }
 
 const createMarkerHtml = (point: DashboardCockpitPoint, highlighted: boolean) => {
@@ -277,17 +357,16 @@ const drawZones = () => {
     return
   }
 
-  const zoneGroup = zoneLayerGroup
-  zoneGroup.clearLayers()
+  zoneLayerGroup.clearLayers()
   zoneRegistry.clear()
 
   props.zones.forEach((zone) => {
     const zoneMarker = L.circleMarker(latLngOf(zone.center), {
-      radius: Math.max(16, Math.min(26, zone.heat / 4)),
-      color: props.selectedZoneId === zone.id ? '#f8fbff' : 'rgba(255,255,255,0.22)',
-      weight: props.selectedZoneId === zone.id ? 2.4 : 1.1,
+      radius: Math.max(15, Math.min(26, zone.heat / 4)),
+      color: props.selectedZoneId === zone.id ? '#f8fbff' : 'rgba(255,255,255,0.26)',
+      weight: props.selectedZoneId === zone.id ? 2.2 : 1.1,
       fillColor: zone.heat >= 92 ? '#ff7d73' : zone.heat >= 84 ? '#ffb561' : '#68a7ff',
-      fillOpacity: props.selectedZoneId === zone.id ? 0.42 : 0.22,
+      fillOpacity: props.selectedZoneId === zone.id ? 0.42 : 0.24,
     })
 
     zoneMarker.bindTooltip(zone.name, {
@@ -299,7 +378,7 @@ const drawZones = () => {
     })
 
     zoneMarker.on('click', () => emit('select-zone', zone.id))
-    zoneMarker.addTo(zoneGroup)
+    zoneMarker.addTo(zoneLayerGroup!)
     zoneRegistry.set(zone.id, zoneMarker)
   })
 }
@@ -309,8 +388,7 @@ const drawPoints = () => {
     return
   }
 
-  const pointGroup = pointLayerGroup
-  pointGroup.clearLayers()
+  pointLayerGroup.clearLayers()
   pointRegistry.clear()
 
   const highlightedIds = new Set(props.highlightedPointIds)
@@ -347,36 +425,74 @@ const drawPoints = () => {
     })
 
     marker.on('click', () => emit('select-point', point.id))
-    marker.addTo(pointGroup)
+    marker.addTo(pointLayerGroup!)
     pointRegistry.set(point.id, marker)
   })
 }
 
 const focusDistrict = (animate = true) => {
-  if (!map) {
+  if (!map || !ensureRenderableViewport()) {
     return
   }
 
   const bounds = districtBounds()
-  if (animate) {
-    map.flyToBounds(bounds, {
-      paddingTopLeft: [56, 44],
-      paddingBottomRight: [56, 44],
+  try {
+    if (animate) {
+      map.flyToBounds(bounds, {
+        paddingTopLeft: [52, 40],
+        paddingBottomRight: [52, 40],
+        maxZoom: 11.35,
+        duration: 0.48,
+      })
+      return
+    }
+
+    map.fitBounds(bounds, {
+      paddingTopLeft: [52, 40],
+      paddingBottomRight: [52, 40],
       maxZoom: 11.35,
-      duration: 0.46,
     })
+  } catch {
+    hasPendingViewportFocus = true
+  }
+}
+
+const focusRegion = async (animate = true) => {
+  if (!map || !ensureRenderableViewport()) {
     return
   }
 
-  map.fitBounds(bounds, {
-    paddingTopLeft: [56, 44],
-    paddingBottomRight: [56, 44],
-    maxZoom: 11.35,
-  })
+  if (props.currentRegion.id === 'haidian-all') {
+    focusDistrict(animate)
+    return
+  }
+
+  await nextTick()
+
+  const bounds = regionBounds()
+  try {
+    if (animate) {
+      map.flyToBounds(bounds, {
+        paddingTopLeft: [48, 40],
+        paddingBottomRight: [48, 40],
+        maxZoom: props.currentRegion.zoom,
+        duration: 0.52,
+      })
+      return
+    }
+
+    map.fitBounds(bounds, {
+      paddingTopLeft: [48, 40],
+      paddingBottomRight: [48, 40],
+      maxZoom: props.currentRegion.zoom,
+    })
+  } catch {
+    hasPendingViewportFocus = true
+  }
 }
 
 const syncFocus = async () => {
-  if (!map) {
+  if (!map || !ensureRenderableViewport()) {
     return
   }
 
@@ -391,8 +507,12 @@ const syncFocus = async () => {
   if (props.selectedPointId) {
     const marker = pointRegistry.get(props.selectedPointId)
     if (marker) {
-      map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 12.5), { duration: 0.45 })
-      marker.openPopup()
+      try {
+        map.flyTo(marker.getLatLng(), Math.max(props.currentRegion.zoom, 13.05), { duration: 0.45 })
+        marker.openPopup()
+      } catch {
+        hasPendingViewportFocus = true
+      }
       return
     }
   }
@@ -400,7 +520,11 @@ const syncFocus = async () => {
   if (props.selectedZoneId) {
     const zoneMarker = zoneRegistry.get(props.selectedZoneId)
     if (zoneMarker) {
-      map.flyTo(zoneMarker.getLatLng(), Math.max(map.getZoom(), 12), { duration: 0.45 })
+      try {
+        map.flyTo(zoneMarker.getLatLng(), Math.max(props.currentRegion.zoom, 12.45), { duration: 0.45 })
+      } catch {
+        hasPendingViewportFocus = true
+      }
       return
     }
   }
@@ -413,6 +537,7 @@ const refreshMap = async () => {
 
   applyBasemap()
   renderBoundary()
+  drawRegionFocus()
   drawZones()
   drawPoints()
   await syncFocus()
@@ -420,8 +545,7 @@ const refreshMap = async () => {
 
   if (!hasInitialFocusApplied) {
     hasInitialFocusApplied = true
-    await nextTick()
-    focusDistrict(false)
+    await focusRegion(false)
   }
 }
 
@@ -453,14 +577,33 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => [props.activeBasemap, props.activeLayer, props.selectedPointId, props.selectedZoneId, props.hoveredPointId, props.points, props.zones, props.highlightedPointIds],
-  async () => {
+  () => [
+    props.activeBasemap,
+    props.activeLayer,
+    props.currentRegion.id,
+    props.selectedPointId,
+    props.selectedZoneId,
+    props.hoveredPointId,
+    props.points,
+    props.zones,
+    props.highlightedPointIds,
+  ],
+  async (_, __, onCleanup) => {
+    let cancelled = false
+    onCleanup(() => {
+      cancelled = true
+    })
+
     await refreshMap()
+    if (!cancelled && !props.selectedPointId && !props.selectedZoneId) {
+      await focusRegion(true)
+    }
   },
   { deep: true },
 )
 
 defineExpose({
+  focusRegion: () => focusRegion(true),
   focusDistrict: () => focusDistrict(true),
 })
 </script>
@@ -530,16 +673,6 @@ defineExpose({
   width: 100%;
   background: transparent;
   font-family: inherit;
-}
-
-.cockpit-map:deep(.leaflet-control-zoom) {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 14px 28px rgba(4, 10, 18, 0.14);
-}
-
-.cockpit-map:deep(.leaflet-control-zoom a) {
-  background: rgba(7, 17, 29, 0.82);
-  color: #eff6ff;
 }
 
 .cockpit-map:deep(.leaflet-control-attribution) {
@@ -630,6 +763,22 @@ defineExpose({
 .cockpit-map:deep(.cockpit-map-label span) {
   color: rgba(222, 232, 245, 0.72);
   font-size: 11px;
+}
+
+.cockpit-map:deep(.cockpit-map-region-label) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  min-height: 30px;
+  border: 1px solid rgba(121, 216, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(7, 16, 28, 0.82);
+  color: #ecf8ff;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 12px 28px rgba(2, 8, 15, 0.24);
+  backdrop-filter: blur(14px);
 }
 
 .cockpit-map:deep(.cockpit-map-marker) {

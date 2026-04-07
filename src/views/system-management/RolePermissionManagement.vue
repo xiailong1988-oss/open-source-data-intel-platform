@@ -209,7 +209,6 @@ const savePermissions = async () => {
           <template #header>
             <div class="role-center__card-header">
               <div class="platform-page-heading">
-                <span class="platform-page-heading__eyebrow">Roles</span>
                 <h3>角色列表</h3>
                 <p>用于快速切换当前焦点角色，并从列表进入权限分配动作。</p>
               </div>

@@ -114,46 +114,56 @@ async function run() {
         await page.waitForTimeout(300)
 
         if (route.slug === 'dashboard') {
-          await page.locator('.situation-left-pulse').first().waitFor({ timeout: 10000 })
+          await page.locator('.situation-region-switcher').first().waitFor({ timeout: 10000 })
+          await page.locator('.situation-live-ticker').first().waitFor({ timeout: 10000 })
+          await page.locator('.region-summary-panel').first().waitFor({ timeout: 10000 })
+          await page.locator('.osint-stream-panel').first().waitFor({ timeout: 10000 })
+          await page.locator('.focus-panel').first().waitFor({ timeout: 10000 })
+          await page.locator('.event-list-panel').first().waitFor({ timeout: 10000 })
           await page.locator('.situation-bottom-band').first().waitFor({ timeout: 10000 })
 
           const stageLayout = await page.evaluate(() => {
-            const mapRect = document.querySelector('.haidian-cockpit__map-column')?.getBoundingClientRect()
-            const railRect = document.querySelector('.situation-signal-rail')?.getBoundingClientRect()
+            const mapRect = document.querySelector('.haidian-cockpit__map-stage-shell')?.getBoundingClientRect()
+            const tickerRect = document.querySelector('.situation-live-ticker')?.getBoundingClientRect()
+            const analyticsRect = document.querySelector('.haidian-cockpit__analytics-shell')?.getBoundingClientRect()
             const bottomRect = document.querySelector('.situation-bottom-band')?.getBoundingClientRect()
-            const leftRect = document.querySelector('.situation-left-pulse')?.getBoundingClientRect()
 
             return {
               map: mapRect
                 ? { top: mapRect.top, right: mapRect.right, bottom: mapRect.bottom, left: mapRect.left, width: mapRect.width }
                 : null,
-              rail: railRect
-                ? { top: railRect.top, right: railRect.right, bottom: railRect.bottom, left: railRect.left, width: railRect.width }
+              ticker: tickerRect
+                ? { top: tickerRect.top, right: tickerRect.right, bottom: tickerRect.bottom, left: tickerRect.left, width: tickerRect.width, height: tickerRect.height }
+                : null,
+              analytics: analyticsRect
+                ? { top: analyticsRect.top, right: analyticsRect.right, bottom: analyticsRect.bottom, left: analyticsRect.left, width: analyticsRect.width, height: analyticsRect.height }
                 : null,
               bottom: bottomRect
                 ? { top: bottomRect.top, right: bottomRect.right, bottom: bottomRect.bottom, left: bottomRect.left, width: bottomRect.width }
                 : null,
-              left: leftRect
-                ? { top: leftRect.top, right: leftRect.right, bottom: leftRect.bottom, left: leftRect.left, width: leftRect.width }
-                : null,
+              panelCount: document.querySelectorAll('.haidian-cockpit__panel-item').length,
             }
           })
 
-          if (!stageLayout.map || !stageLayout.rail || !stageLayout.bottom || !stageLayout.left) {
+          if (!stageLayout.map || !stageLayout.ticker || !stageLayout.analytics || !stageLayout.bottom) {
             throw new Error('首页四区结构未完整渲染')
           }
 
           if (viewport.width >= 1366) {
-            if (stageLayout.rail.top - stageLayout.map.top > 120) {
-              throw new Error(`首页在 ${viewport.width}px 桌面宽度下出现上下堆叠，signal rail 未保持在地图右侧`)
+            if (stageLayout.ticker.top <= stageLayout.map.bottom - 8) {
+              throw new Error(`首页在 ${viewport.width}px 桌面宽度下地图与快讯条层级顺序异常`)
             }
 
-            if (stageLayout.rail.left <= stageLayout.map.right - 80) {
-              throw new Error(`首页在 ${viewport.width}px 桌面宽度下地图与 signal rail 左右关系异常`)
+            if (stageLayout.analytics.top <= stageLayout.ticker.bottom - 8) {
+              throw new Error(`首页在 ${viewport.width}px 桌面宽度下快讯条与联动面板发生重叠`)
             }
 
-            if (stageLayout.bottom.bottom > viewport.height + 6) {
-              throw new Error(`首页在 ${viewport.width}px 桌面宽度下首屏未完整露出底部六大板块`)
+            if (stageLayout.analytics.height < 160) {
+              throw new Error(`首页在 ${viewport.width}px 桌面宽度下联动面板高度过小`)
+            }
+
+            if (stageLayout.panelCount !== 4) {
+              throw new Error(`首页联动面板数量异常，当前为 ${stageLayout.panelCount}`)
             }
           }
 
@@ -173,55 +183,41 @@ async function run() {
             }
           }
 
-          await page.locator('.situation-top-chrome__actions button').nth(1).click()
+          await page.locator('.top-bar__layout-tools .el-button').nth(1).click()
           await page.locator('.platform-layout__aside--hidden').waitFor({ timeout: 10000 })
-          await page.locator('.situation-top-chrome__actions button').nth(1).click()
+          await page.locator('.top-bar__layout-tools .el-button').nth(1).click()
           await page.locator('.platform-layout__aside--hidden').waitFor({ state: 'detached', timeout: 10000 })
-          await page.locator('.situation-top-chrome__actions button').nth(0).click()
-          await page.locator('.situation-map-strip__action').click()
+          const initialRegionTitle = (await page.locator('.region-summary-panel__head strong').textContent())?.trim()
+          await page.locator('.situation-region-switcher__chip').nth(1).click()
+          await page.waitForTimeout(800)
+          const nextRegionTitle = (await page.locator('.region-summary-panel__head strong').textContent())?.trim()
+          const regionLabel = (await page.locator('.cockpit-map-region-label').textContent())?.trim()
+          if (initialRegionTitle === nextRegionTitle || !regionLabel) {
+            throw new Error('首页地区切换后未正确联动地图或区域摘要')
+          }
+          await page.locator('.situation-map-control__layer').nth(1).click()
+          await page.locator('.situation-map-control__actions button').first().click()
           await page.waitForFunction(() => document.querySelectorAll('.map-highlight-layer__card').length > 0)
           await page.locator('.map-highlight-layer__card').first().hover()
           await page.locator('.map-highlight-layer__card').first().click({ force: true })
           await page.waitForFunction(() => location.pathname !== '/dashboard')
           await page.goBack({ waitUntil: 'domcontentloaded' })
           await page.locator('.cockpit-map').first().waitFor({ timeout: 10000 })
-          await page.locator('.situation-left-pulse__metric').first().click()
+          await page.locator('.situation-live-ticker__item').first().click({ force: true })
           await page.waitForFunction(() => location.pathname !== '/dashboard')
           await page.goBack({ waitUntil: 'domcontentloaded' })
-          await page.locator('.situation-left-pulse').first().waitFor({ timeout: 10000 })
-          await page.locator('.situation-map-strip__signal').first().click()
-          await page.locator('.situation-map-strip__layer').nth(1).click()
-          const focusTitleBefore = (await page.locator('.situation-signal-rail__focus-title').textContent())?.trim()
-          const activeTickerBefore = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
-          await page.waitForTimeout(4300)
-          const activeTickerAfter = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
-          const focusTitleAfter = (await page.locator('.situation-signal-rail__focus-title').textContent())?.trim()
-          if (activeTickerBefore === activeTickerAfter) {
-            throw new Error('首页右侧情报流未按预期自动推进')
-          }
-          if (focusTitleBefore !== focusTitleAfter) {
-            throw new Error('首页右侧情报流自动推进时错误联动了地图焦点')
-          }
-          await page.locator('.situation-signal-rail').hover()
-          const pausedTickerTitle = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
-          await page.waitForTimeout(4300)
-          const pausedTickerAfter = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
-          if (pausedTickerTitle !== pausedTickerAfter) {
-            throw new Error('首页右侧情报流在悬停状态下没有暂停')
-          }
-          await page.mouse.move(24, 24)
-          await page.waitForTimeout(4300)
-          const resumedTickerTitle = (await page.locator('.situation-signal-rail__item.is-active strong').first().textContent())?.trim()
-          if (resumedTickerTitle === pausedTickerAfter) {
-            throw new Error('首页右侧情报流在移出悬停后没有恢复自动推进')
-          }
-          await page.locator('.situation-signal-rail__controls button').last().click()
-          await page.locator('.situation-signal-rail__item.is-active').first().click({ force: true })
+          await page.locator('.osint-stream-panel__detail').first().click()
           await page.waitForFunction(() => location.pathname !== '/dashboard')
           await page.goBack({ waitUntil: 'domcontentloaded' })
           await page.locator('.cockpit-map').first().waitFor({ timeout: 10000 })
-          await page.locator('.situation-signal-rail__focus-title').first().waitFor({ timeout: 10000 })
-          await page.locator('.situation-bottom-band__card-main').first().click()
+          await page.locator('.focus-panel__hero strong').first().waitFor({ timeout: 10000 })
+          await page.locator('.event-list-panel__item').first().click()
+          await page.waitForTimeout(600)
+          const focusTitle = (await page.locator('.focus-panel__hero strong').textContent())?.trim()
+          if (!focusTitle) {
+            throw new Error('首页事件列表点击后未正确更新焦点详情')
+          }
+          await page.locator('.situation-bottom-band__open').first().click({ force: true })
           await page.waitForFunction(() => location.pathname !== '/dashboard')
           await page.goBack({ waitUntil: 'domcontentloaded' })
           await page.locator('.situation-bottom-band').first().waitFor({ timeout: 10000 })

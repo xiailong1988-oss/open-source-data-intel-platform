@@ -265,7 +265,6 @@ watch(filteredUsers, (list) => {
           <template #header>
             <div class="user-center__card-header">
               <div class="platform-page-heading">
-                <span class="platform-page-heading__eyebrow">Accounts</span>
                 <h3>用户列表</h3>
                 <p>支持按用户名、姓名、部门和状态聚焦当前账号池，并继续进入编辑和启停动作。</p>
               </div>

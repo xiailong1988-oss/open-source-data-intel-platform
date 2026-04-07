@@ -113,7 +113,6 @@ const saveConfig = async () => {
           <template #header>
             <div class="system-config-center__card-header">
               <div class="platform-page-heading">
-                <span class="platform-page-heading__eyebrow">Form</span>
                 <h3>配置表单区</h3>
                 <p>围绕平台基础信息、检索参数和预警阈值提供统一配置入口，保持与后续真实接口的字段组织一致。</p>
               </div>

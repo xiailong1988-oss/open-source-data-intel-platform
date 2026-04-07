@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 /**
- * 首页顶部只保留终端式轻 chrome。
- * 它只承担“系统在线”和“当前态势”的薄层提示，不能再像后台 header 一样抢地图高度。
+ * 首页顶部继续做薄层 chrome，
+ * 只保留必要状态和操作，把原本页内大标题彻底收掉，优先把空间还给首屏主内容。
  */
 defineProps<{
   district: string
@@ -27,22 +27,15 @@ defineEmits<{
     :initial="{ opacity: 0, y: -12 }"
     :enter="{ opacity: 1, y: 0, transition: { duration: 520 } }"
   >
-    <div class="situation-top-chrome__brand">
-      <strong>海淀区综合态势驾驶舱</strong>
-      <span class="situation-top-chrome__state">在线</span>
-    </div>
-
     <div class="situation-top-chrome__status">
       <span>{{ district }}</span>
       <span>{{ activeLayer }}</span>
       <span>{{ activeBasemap }}</span>
-      <span>更新 {{ latestUpdate }}</span>
       <span v-if="basemapNotice" class="is-notice">{{ basemapNotice }}</span>
     </div>
 
     <div class="situation-top-chrome__actions">
       <button type="button" @click="$emit('reset-layout')">恢复版面</button>
-      <button type="button" @click="$emit('focus-district')">聚焦海淀</button>
       <button type="button" @click="$emit('toggle-sidebar')">
         {{ isSidebarHidden ? '展开侧栏' : '专注视图' }}
       </button>
@@ -54,42 +47,17 @@ defineEmits<{
 <style scoped>
 .situation-top-chrome {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
+  gap: 6px;
+  min-height: 30px;
   padding: 0;
-}
-
-.situation-top-chrome__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.situation-top-chrome__brand strong {
-  color: #f4f8ff;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.situation-top-chrome__state {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  border: 1px solid rgba(255, 112, 101, 0.34);
-  padding: 0 8px;
-  color: #ff9c92;
-  font-size: 10px;
-  font-weight: 700;
 }
 
 .situation-top-chrome__status {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
   min-width: 0;
 }
@@ -97,11 +65,11 @@ defineEmits<{
 .situation-top-chrome__status span {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
+  min-height: 20px;
   border: 1px solid rgba(123, 165, 223, 0.1);
-  padding: 0 8px;
+  padding: 0 7px;
   color: rgba(214, 227, 243, 0.72);
-  font-size: 10px;
+  font-size: 9px;
   background: rgba(6, 14, 23, 0.2);
 }
 
@@ -112,16 +80,16 @@ defineEmits<{
 .situation-top-chrome__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .situation-top-chrome__actions button {
   border: 1px solid rgba(113, 160, 226, 0.14);
-  padding: 0 10px;
-  min-height: 26px;
+  padding: 0 9px;
+  min-height: 24px;
   background: rgba(7, 16, 26, 0.2);
   color: #a6c2e3;
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }

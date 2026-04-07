@@ -698,7 +698,7 @@ const generateTopicView = () => {
         <template #header>
           <div class="insight-card__header">
             <div>
-              <span class="insight-card__eyebrow">Intel Panel</span>
+                  <span class="insight-card__eyebrow">Intel Panel</span>
               <h3>联动情报面板</h3>
               <p>承接地图选中结果，显示区域摘要、对象详情和继续钻取入口。</p>
             </div>

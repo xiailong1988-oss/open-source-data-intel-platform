@@ -139,7 +139,6 @@ watch(() => route.query, applyRouteQuery, { immediate: true })
     <template #header>
       <div class="page-card__header">
         <div class="platform-page-heading">
-          <span class="platform-page-heading__eyebrow">Normalized Content</span>
           <h3>标准化数据列表</h3>
           <p>查看治理后的结构化内容，支持从摘要、标签、实体和原始来源继续追踪。</p>
         </div>

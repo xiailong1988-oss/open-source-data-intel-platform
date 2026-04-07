@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { GridStack, type GridStackWidget } from 'gridstack'
 import type { DashboardBusinessBoardMetric } from '../../types/dashboardCockpit'
@@ -21,12 +21,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'open-board', board: DashboardBusinessBoardMetric): void
+  (event: 'restore-layout'): void
 }>()
 
-const STORAGE_KEY = 'dashboard-business-board-grid-v3'
+const STORAGE_KEY = 'dashboard-business-board-grid-v4'
 const gridRoot = ref<HTMLElement | null>(null)
 const boardLayouts = ref<BoardLayout[]>([])
 const animatedValues = reactive<Record<string, number>>({})
+
 let grid: GridStack | null = null
 let frameId = 0
 
@@ -103,6 +105,7 @@ const captureLayoutsFromDom = () => {
 
 const destroyGrid = () => {
   if (!grid) return
+
   grid.offAll()
   grid.destroy(false)
   grid = null
@@ -114,10 +117,12 @@ const initGrid = async () => {
   destroyGrid()
   await nextTick()
 
+  if (!gridRoot.value) return
+
   grid = GridStack.init(
     {
       column: 6,
-      cellHeight: 112,
+      cellHeight: 124,
       margin: 10,
       float: false,
       minRow: 1,
@@ -201,6 +206,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   destroyGrid()
+
   if (frameId) {
     window.cancelAnimationFrame(frameId)
   }
@@ -218,7 +224,7 @@ onBeforeUnmount(() => {
       <div>
         <strong>六大板块摘要矩阵</strong>
       </div>
-      <button type="button" class="situation-bottom-band__reset" @click="restoreDefault">恢复默认布局</button>
+      <button type="button" class="situation-bottom-band__reset" @click="restoreDefault">恢复布局</button>
     </header>
 
     <div ref="gridRoot" class="situation-bottom-band__grid grid-stack">
@@ -297,14 +303,6 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
-.situation-bottom-band__eyebrow {
-  color: #83c2ff;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
 .situation-bottom-band__shell-header strong,
 .situation-bottom-band__card strong {
   color: #eff6ff;
@@ -312,17 +310,13 @@ onBeforeUnmount(() => {
 
 .situation-bottom-band__reset,
 .situation-bottom-band__open {
+  min-height: 24px;
   border: 1px solid rgba(118, 168, 240, 0.12);
+  border-radius: 999px;
+  padding: 0 8px;
   background: rgba(8, 16, 28, 0.42);
   color: rgba(202, 220, 244, 0.74);
   cursor: pointer;
-}
-
-.situation-bottom-band__reset,
-.situation-bottom-band__open {
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
   font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -351,6 +345,7 @@ onBeforeUnmount(() => {
   background: linear-gradient(180deg, rgba(8, 15, 25, 0.8) 0%, rgba(9, 16, 26, 0.68) 100%);
   padding: 10px;
   cursor: grab;
+  transition: border-color 0.24s ease, box-shadow 0.24s ease, transform 0.24s ease;
 }
 
 .situation-bottom-band__card::before {
@@ -373,6 +368,12 @@ onBeforeUnmount(() => {
   background: linear-gradient(180deg, rgba(90, 201, 143, 0.08) 0%, transparent 42%);
 }
 
+.situation-bottom-band__card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(137, 190, 255, 0.24);
+  box-shadow: 0 14px 28px rgba(2, 8, 15, 0.2);
+}
+
 .situation-bottom-band__card-head {
   display: flex;
   justify-content: space-between;
@@ -385,7 +386,9 @@ onBeforeUnmount(() => {
   display: flex;
   width: 100%;
   min-width: 0;
+  flex: 1 1 auto;
   flex-direction: column;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -458,11 +461,6 @@ onBeforeUnmount(() => {
 
 .situation-bottom-band__highlights strong {
   font-size: 13px;
-}
-
-.situation-bottom-band__card:hover {
-  border-color: rgba(137, 190, 255, 0.24);
-  box-shadow: 0 14px 28px rgba(2, 8, 15, 0.2);
 }
 
 .situation-bottom-band :deep(.grid-stack-item.ui-draggable-dragging .grid-stack-item-content),

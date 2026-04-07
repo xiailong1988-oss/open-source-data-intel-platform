@@ -306,7 +306,6 @@ watch(filteredRules, (list) => {
           <template #header>
             <div class="warning-rules__card-header">
               <div class="platform-page-heading">
-                <span class="platform-page-heading__eyebrow">Rules</span>
                 <h3>规则列表</h3>
                 <p>围绕规则名称、触发方式、启停状态和告警等级管理预警配置能力。</p>
               </div>

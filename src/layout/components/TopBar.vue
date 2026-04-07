@@ -210,29 +210,31 @@ onBeforeUnmount(() => {
     <div ref="commandCenterRef" class="top-bar__center">
       <span v-if="showCockpitTitle" class="top-bar__cockpit-title">海淀区综合态势驾驶舱</span>
 
-      <el-tooltip content="智能检索 / 智能问答" placement="bottom">
-        <el-button
-          circle
-          class="top-bar__command-trigger"
-          :class="{ 'is-active': isCommandExpanded }"
-          :icon="Search"
-          @click="toggleCommandPanel"
-        />
-      </el-tooltip>
-
-      <transition name="command-panel">
-        <div v-if="isCommandExpanded" class="top-bar__command-panel">
-          <GlobalCommandBar
-            v-model="commandKeyword"
-            v-model:mode="commandMode"
-            :modes="workbenchUiConfig.commandModes"
-            :placeholder="commandPlaceholder"
-            :quick-questions="workbenchUiConfig.quickQuestions"
-            @pick-question="handleQuickQuestion"
-            @submit="handleCommandSubmit"
+      <div class="top-bar__command-anchor">
+        <el-tooltip content="智能检索 / 智能问答" placement="bottom">
+          <el-button
+            circle
+            class="top-bar__command-trigger"
+            :class="{ 'is-active': isCommandExpanded }"
+            :icon="Search"
+            @click="toggleCommandPanel"
           />
-        </div>
-      </transition>
+        </el-tooltip>
+
+        <transition name="command-panel">
+          <div v-if="isCommandExpanded" class="top-bar__command-panel">
+            <GlobalCommandBar
+              v-model="commandKeyword"
+              v-model:mode="commandMode"
+              :modes="workbenchUiConfig.commandModes"
+              :placeholder="commandPlaceholder"
+              :quick-questions="workbenchUiConfig.quickQuestions"
+              @pick-question="handleQuickQuestion"
+              @submit="handleCommandSubmit"
+            />
+          </div>
+        </transition>
+      </div>
     </div>
 
     <div class="top-bar__right">
@@ -271,7 +273,7 @@ onBeforeUnmount(() => {
 .top-bar {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
   min-height: var(--platform-header-height);
   align-items: center;
@@ -293,12 +295,11 @@ onBeforeUnmount(() => {
 }
 
 .top-bar__center {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  justify-self: center;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
 }
 
 .top-bar__cockpit-title {
@@ -331,6 +332,13 @@ onBeforeUnmount(() => {
   background: linear-gradient(90deg, rgba(91, 168, 255, 0) 0%, rgba(91, 168, 255, 0.78) 34%, rgba(79, 255, 221, 0.9) 72%, rgba(79, 255, 221, 0) 100%);
   box-shadow: 0 0 14px rgba(79, 199, 255, 0.32);
   opacity: 0.82;
+}
+
+.top-bar__command-anchor {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 12px);
+  transform: translateY(-50%);
 }
 
 .top-bar__command-trigger {
@@ -443,7 +451,7 @@ onBeforeUnmount(() => {
 }
 
 .top-bar--focus {
-  grid-template-columns: minmax(260px, 0.95fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .top-bar--focus .top-bar__title,
@@ -464,7 +472,7 @@ onBeforeUnmount(() => {
 @media (max-width: 1360px) {
   .top-bar,
   .top-bar--focus {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .top-bar__topic span,
@@ -499,6 +507,17 @@ onBeforeUnmount(() => {
 
   .top-bar__cockpit-title {
     display: none;
+  }
+
+  .top-bar__center {
+    left: auto;
+    right: 84px;
+    transform: translateY(-50%);
+  }
+
+  .top-bar__command-anchor {
+    position: static;
+    transform: none;
   }
 }
 

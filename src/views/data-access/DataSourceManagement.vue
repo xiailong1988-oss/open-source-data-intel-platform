@@ -194,7 +194,6 @@ watch(() => route.query, applyRouteQuery, { immediate: true })
     <template #header>
       <div class="page-card__header">
         <div class="platform-page-heading">
-          <span class="platform-page-heading__eyebrow">Source Registry</span>
           <h3>数据源管理</h3>
           <p>管理多源数据的接入方式、负责人和运行状态，保障上游数据持续可用。</p>
         </div>

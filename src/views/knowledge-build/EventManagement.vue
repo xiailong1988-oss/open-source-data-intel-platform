@@ -278,7 +278,6 @@ watch(filteredList, (list) => {
           <template #header>
             <div class="event-center__card-header">
               <div class="platform-page-heading">
-                <span class="platform-page-heading__eyebrow">Queue</span>
                 <h3>事件队列</h3>
                 <p>按事件类型、风险等级、状态和关键词收敛当前观察范围，支持从列表进入详情与关联对象。</p>
               </div>

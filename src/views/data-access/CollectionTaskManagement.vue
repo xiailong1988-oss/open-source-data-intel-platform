@@ -270,7 +270,6 @@ watch(filteredTasks, (list) => {
           <template #header>
             <div class="collection-task-center__card-header">
               <div class="platform-page-heading">
-                <span class="platform-page-heading__eyebrow">Queue</span>
                 <h3>采集任务队列</h3>
                 <p>按任务名称、数据源、任务类型和状态聚焦当前观察范围，并从列表直接进入日志和数据源联动。</p>
               </div>

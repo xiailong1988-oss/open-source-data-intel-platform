@@ -70,11 +70,11 @@ defineEmits<{
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  min-height: 46px;
+  gap: 8px;
+  min-height: 40px;
   border: 1px solid rgba(122, 170, 236, 0.1);
   border-radius: 18px;
-  padding: 6px 10px;
+  padding: 5px 8px;
   background:
     linear-gradient(180deg, rgba(6, 13, 22, 0.42) 0%, rgba(6, 13, 22, 0.18) 100%);
   backdrop-filter: blur(18px);
@@ -85,7 +85,7 @@ defineEmits<{
 .situation-map-strip__layers {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -121,40 +121,40 @@ defineEmits<{
 .situation-map-strip__signal {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
+  gap: 6px;
+  padding: 4px 7px;
   white-space: nowrap;
 }
 
 .situation-map-strip__signal span {
   color: rgba(194, 215, 239, 0.78);
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .situation-map-strip__signal strong {
   color: #f2f7ff;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .situation-map-strip__layer {
-  padding: 5px 9px;
-  font-size: 10px;
+  padding: 4px 8px;
+  font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .situation-map-strip__action {
-  padding: 5px 10px;
-  font-size: 10px;
+  padding: 4px 8px;
+  font-size: 9px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
-@media (max-width: 1560px) {
+@media (max-width: 1180px) {
   .situation-map-strip {
     grid-template-columns: 1fr;
     align-items: stretch;
