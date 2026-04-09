@@ -1,0 +1,92 @@
+-- Task-04：创建情报与事件核心表。
+
+CREATE TABLE IF NOT EXISTS biz_intel_source (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    source_name VARCHAR(128) NOT NULL COMMENT '来源名称',
+    source_type VARCHAR(64) NOT NULL COMMENT '来源类型',
+    source_url VARCHAR(500) NOT NULL DEFAULT '' COMMENT '来源地址',
+    credibility_level INT NOT NULL DEFAULT 0 COMMENT '可信度等级',
+    enabled TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：1启用 0停用',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建人',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '修改人',
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除',
+    remark VARCHAR(500) NOT NULL DEFAULT '' COMMENT '备注',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_source_name (source_name),
+    KEY idx_source_type (source_type),
+    KEY idx_enabled (enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='情报来源表';
+
+CREATE TABLE IF NOT EXISTS biz_intel_tag (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    tag_name VARCHAR(64) NOT NULL COMMENT '标签名称',
+    tag_type VARCHAR(64) NOT NULL COMMENT '标签类型',
+    sort_no INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    enabled TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：1启用 0停用',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建人',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '修改人',
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除',
+    remark VARCHAR(500) NOT NULL DEFAULT '' COMMENT '备注',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_tag_name_type (tag_name, tag_type),
+    KEY idx_tag_type (tag_type),
+    KEY idx_enabled (enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='情报标签表';
+
+CREATE TABLE IF NOT EXISTS biz_intel_item (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    title VARCHAR(500) NOT NULL COMMENT '标题',
+    summary TEXT NOT NULL COMMENT '摘要',
+    content LONGTEXT NOT NULL COMMENT '正文内容',
+    region_id BIGINT NOT NULL COMMENT '所属地区ID',
+    event_type_id BIGINT NOT NULL COMMENT '事件类型ID',
+    source_id BIGINT NOT NULL COMMENT '来源ID',
+    importance_level INT NOT NULL DEFAULT 0 COMMENT '重要级别',
+    heat_score INT NOT NULL DEFAULT 0 COMMENT '热度分值',
+    focus_flag TINYINT NOT NULL DEFAULT 0 COMMENT '是否重点关注：1是 0否',
+    risk_level INT NOT NULL DEFAULT 0 COMMENT '风险等级',
+    occur_time DATETIME NOT NULL COMMENT '事件发生时间',
+    publish_time DATETIME NOT NULL COMMENT '信息发布时间',
+    lng DECIMAL(10, 6) NULL COMMENT '经度',
+    lat DECIMAL(10, 6) NULL COMMENT '纬度',
+    address VARCHAR(255) NOT NULL DEFAULT '' COMMENT '地址描述',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '数据状态：1正常 0停用',
+    review_status TINYINT NOT NULL DEFAULT 0 COMMENT '审核状态：0待审核 1已通过 2已驳回',
+    data_origin VARCHAR(64) NOT NULL DEFAULT 'manual' COMMENT '数据来源方式',
+    ext_json JSON NULL COMMENT '扩展字段',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建人',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '修改人',
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除',
+    remark VARCHAR(500) NOT NULL DEFAULT '' COMMENT '备注',
+    PRIMARY KEY (id),
+    KEY idx_region_publish_time (region_id, publish_time),
+    KEY idx_event_type_publish_time (event_type_id, publish_time),
+    KEY idx_source_id (source_id),
+    KEY idx_focus_flag (focus_flag),
+    KEY idx_heat_score (heat_score),
+    KEY idx_occur_time (occur_time),
+    KEY idx_region_event_time (region_id, event_type_id, publish_time),
+    KEY idx_status_review (status, review_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='情报主表';
+
+CREATE TABLE IF NOT EXISTS biz_intel_item_tag (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    intel_item_id BIGINT NOT NULL COMMENT '情报ID',
+    tag_id BIGINT NOT NULL COMMENT '标签ID',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建人',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '修改人',
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除',
+    remark VARCHAR(500) NOT NULL DEFAULT '' COMMENT '备注',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_intel_item_tag (intel_item_id, tag_id),
+    KEY idx_intel_item_id (intel_item_id),
+    KEY idx_tag_id (tag_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='情报标签关联表';

@@ -1,0 +1,53 @@
+-- Task-07: create hotspot topic and focus target tables for homepage modules
+
+CREATE TABLE IF NOT EXISTS biz_hotspot_topic (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key',
+    topic_name VARCHAR(200) NOT NULL COMMENT 'Topic name',
+    topic_category VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'Topic category',
+    region_id BIGINT NOT NULL COMMENT 'Region ID',
+    heat_score INT NOT NULL DEFAULT 0 COMMENT 'Heat score',
+    mention_count INT NOT NULL DEFAULT 0 COMMENT 'Mention count',
+    latest_event_time DATETIME NOT NULL COMMENT 'Latest event time',
+    latest_intel_id BIGINT NULL COMMENT 'Linked intel item ID',
+    owner_dept VARCHAR(128) NOT NULL DEFAULT '' COMMENT 'Owner department',
+    keyword VARCHAR(128) NOT NULL DEFAULT '' COMMENT 'Search keyword',
+    summary VARCHAR(500) NOT NULL DEFAULT '' COMMENT 'Topic summary',
+    enabled TINYINT NOT NULL DEFAULT 1 COMMENT 'Enable flag: 1 enabled, 0 disabled',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT 'Created by',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT 'Updated by',
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT 'Logical delete flag: 0 active, 1 deleted',
+    remark VARCHAR(500) NOT NULL DEFAULT '' COMMENT 'Remark',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_topic_name_region (topic_name, region_id),
+    KEY idx_hotspot_region_heat (region_id, heat_score),
+    KEY idx_hotspot_latest_time (latest_event_time),
+    KEY idx_hotspot_enabled (enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Homepage hotspot topic';
+
+CREATE TABLE IF NOT EXISTS biz_focus_target (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key',
+    target_name VARCHAR(200) NOT NULL COMMENT 'Target name',
+    target_type VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'Target type',
+    region_id BIGINT NOT NULL COMMENT 'Region ID',
+    focus_level INT NOT NULL DEFAULT 1 COMMENT 'Focus level: 3 high, 2 medium, 1 low',
+    latest_event_time DATETIME NOT NULL COMMENT 'Latest event time',
+    latest_intel_id BIGINT NULL COMMENT 'Linked intel item ID',
+    latest_event_title VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'Latest event title',
+    status VARCHAR(32) NOT NULL DEFAULT '' COMMENT 'Target status',
+    keyword VARCHAR(128) NOT NULL DEFAULT '' COMMENT 'Search keyword',
+    summary VARCHAR(500) NOT NULL DEFAULT '' COMMENT 'Target summary',
+    enabled TINYINT NOT NULL DEFAULT 1 COMMENT 'Enable flag: 1 enabled, 0 disabled',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT 'Created by',
+    created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT 'Updated by',
+    updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT 'Logical delete flag: 0 active, 1 deleted',
+    remark VARCHAR(500) NOT NULL DEFAULT '' COMMENT 'Remark',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_target_name_region_type (target_name, region_id, target_type),
+    KEY idx_focus_region_level (region_id, focus_level),
+    KEY idx_focus_latest_time (latest_event_time),
+    KEY idx_focus_enabled (enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Homepage focus target';
